@@ -3,7 +3,7 @@ const asyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const User = require('../model/user');
-const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
 // Generate JWT Token
 const generateToken = (user) => {
   return jwt.sign(
