@@ -15,6 +15,16 @@ app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
 }))
 app.use(bodyParser.json());
+
+//rateLimit
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, //ladle 15 minute ho gye
+  max: 100 //each ip pe 100 request per windoms duga
+})
+
+app.use('/users/login', limiter);
+app.use('/users/register', limiter);
+app.use(express.json());
 //? setting static folder path
 app.use('/image/products', express.static('public/products'));
 app.use('/image/category', express.static('public/category'));
