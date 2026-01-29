@@ -2,13 +2,18 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
 const asyncHandler = require('express-async-handler');
 const dotenv = require('dotenv');
 dotenv.config();
 
 const app = express();
 //?Middle wair
-app.use(cors({ origin: '*' }))
+app.use(helmet())
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
+}))
 app.use(bodyParser.json());
 //? setting static folder path
 app.use('/image/products', express.static('public/products'));
@@ -38,17 +43,17 @@ app.use('/notification', require('./routes/notification'));
 
 // Example route using asyncHandler directly in app.js
 app.get('/', asyncHandler(async (req, res) => {
-    res.json({ success: true, message: 'API working successfully', data: null });
+  res.json({ success: true, message: 'API working successfully', data: null });
 }));
 
 // Global error handler
 app.use((error, req, res, next) => {
-    res.status(500).json({ success: false, message: error.message, data: null });
+  res.status(500).json({ success: false, message: error.message, data: null });
 });
 
 
 app.listen(process.env.PORT, () => {
-    console.log(`Server running on port ${process.env.PORT}`);
+  console.log(`Server running on port ${process.env.PORT}`);
 });
 
 
