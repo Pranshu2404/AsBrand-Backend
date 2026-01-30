@@ -8,7 +8,7 @@ const asyncHandler = require('express-async-handler');
 // Get all sub-categories
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const subCategories = await SubCategory.find().populate('categoryId').sort({'categoryId': 1});
+        const subCategories = await SubCategory.find().populate('categoryId').sort({ 'categoryId': 1 });
         res.json({ success: true, message: "Sub-categories retrieved successfully.", data: subCategories });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -39,7 +39,7 @@ router.post('/', asyncHandler(async (req, res) => {
     try {
         const subCategory = new SubCategory({ name, categoryId });
         const newSubCategory = await subCategory.save();
-        res.json({ success: true, message: "Sub-category created successfully.", data: null });
+        res.json({ success: true, message: "Sub-category created successfully.", data: newSubCategory });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
