@@ -2,13 +2,14 @@ const express = require('express');
 const asyncHandler = require('express-async-handler');
 const router = express.Router();
 const Order = require('../model/order');
+const { authMiddleware } = require('../middleware/auth.middleware');
 
 // Get all orders
 router.get('/', asyncHandler(async (req, res) => {
     try {
         const orders = await Order.find()
-        .populate('couponCode', 'id couponCode discountType discountAmount')
-        .populate('userID', 'id name').sort({ _id: -1 });
+            .populate('couponCode', 'id couponCode discountType discountAmount')
+            .populate('userID', 'id name').sort({ _id: -1 });
         res.json({ success: true, message: "Orders retrieved successfully.", data: orders });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -35,8 +36,8 @@ router.get('/:id', asyncHandler(async (req, res) => {
     try {
         const orderID = req.params.id;
         const order = await Order.findById(orderID)
-        .populate('couponCode', 'id couponCode discountType discountAmount')
-        .populate('userID', 'id name');
+            .populate('couponCode', 'id couponCode discountType discountAmount')
+            .populate('userID', 'id name');
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found." });
         }
@@ -47,16 +48,23 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Create a new order
-router.post('/', asyncHandler(async (req, res) => {
-    const { userID,orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl } = req.body;
-    if (!userID || !items || !totalPrice || !shippingAddress || !paymentMethod || !orderTotal) {
-        return res.status(400).json({ success: false, message: "User ID, items, totalPrice, shippingAddress, paymentMethod, and orderTotal are required." });
+router.post('/', authMiddleware, asyncHandler(async (req, res) => {
+    const { orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl } = req.body;
+
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ success: false, message: "User not authorized." });
+    }
+    const userID = req.user.id;
+
+    if (!items || !totalPrice || !shippingAddress || !paymentMethod || !orderTotal) {
+        return res.status(400).json({ success: false, message: "Items, totalPrice, shippingAddress, paymentMethod, and orderTotal are required." });
     }
 
     try {
-        const order = new Order({ userID,orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl });
+        const order = new Order({ userID, orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl });
         const newOrder = await order.save();
-        res.json({ success: true, message: "Order created successfully.", data: null });
+        res.json({ success: true, message: "Order created successfully.", data: newOrder });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -81,7 +89,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
             return res.status(404).json({ success: false, message: "Order not found." });
         }
 
-        res.json({ success: true, message: "Order updated successfully.", data: null });
+        res.json({ success: true, message: "Order updated successfully.", data: updatedOrder });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
