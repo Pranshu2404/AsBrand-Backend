@@ -5,6 +5,8 @@ const EmiPlan = require('../model/emiPlan');
 const EmiApplication = require('../model/emiApplication');
 const UserKyc = require('../model/userKyc');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
+const { validate } = require('../middleware/validate');
+const { createEmiPlanSchema, applyEmiSchema, payInstallmentSchema } = require('../validators/schemas');
 
 //Emi plans staring yaha se
 
@@ -35,14 +37,14 @@ router.get('/plans', asyncHandler(async (req, res) => {
   res.json({ success: true, data: plansWithEmi });
 }));
 // Create EMI Plan (Admin only)
-router.post('/plans', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.post('/plans', authMiddleware, adminMiddleware, validate(createEmiPlanSchema), asyncHandler(async (req, res) => {
   const plan = new EmiPlan(req.body);
   await plan.save();
   res.status(201).json({ success: true, data: plan });
 }));
 // ==================== EMI APPLICATIONS ====================
 // Apply for EMI
-router.post('/apply', authMiddleware, asyncHandler(async (req, res) => {
+router.post('/apply', authMiddleware, validate(applyEmiSchema), asyncHandler(async (req, res) => {
   const { orderId, emiPlanId, principalAmount } = req.body;
   const userId = req.user.id;
 
@@ -113,7 +115,7 @@ router.get('/my-applications', authMiddleware, asyncHandler(async (req, res) => 
   res.json({ success: true, data: applications });
 }));
 // Pay an installment
-router.post('/pay/:applicationId/:installmentNumber', authMiddleware, asyncHandler(async (req, res) => {
+router.post('/pay/:applicationId/:installmentNumber', authMiddleware, validate(payInstallmentSchema), asyncHandler(async (req, res) => {
   const { applicationId, installmentNumber } = req.params;
   const { transactionId, paymentMethod } = req.body;
 

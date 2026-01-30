@@ -4,14 +4,16 @@ const router = express.Router();
 const dotenv = require('dotenv');
 dotenv.config();
 
+const { validate } = require('../middleware/validate');
+const { stripePaymentSchema } = require('../validators/schemas');
+
 // for stripe payment gateway
 const stripe = require('stripe')(process.env.STRIPE_SKRT_KET_TST);
 
 
 
-router.post('/stripe', asyncHandler(async (req, res) => {
+router.post('/stripe', validate(stripePaymentSchema), asyncHandler(async (req, res) => {
   try {
-    console.log('stripe');
     const { email, name, address, amount, currency, description } = req.body;
 
     const customer = await stripe.customers.create({
@@ -36,10 +38,14 @@ router.post('/stripe', asyncHandler(async (req, res) => {
     });
 
     res.json({
-      paymentIntent: paymentIntent.client_secret,
-      ephemeralKey: ephemeralKey.secret,
-      customer: customer.id,
-      publishableKey: process.env.STRIPE_PBLK_KET_TST,
+      success: true,
+      message: "Payment intent created successfully.",
+      data: {
+        paymentIntent: paymentIntent.client_secret,
+        ephemeralKey: ephemeralKey.secret,
+        customer: customer.id,
+        publishableKey: process.env.STRIPE_PBLK_KET_TST,
+      }
     });
 
   } catch (error) {
@@ -55,8 +61,12 @@ router.post('/stripe', asyncHandler(async (req, res) => {
 router.post('/razorpay', asyncHandler(async (req, res) => {
   try {
     console.log('razorpay')
-    const razorpayKey  = process.env.RAZORPAY_KEY_TEST
-    res.json({  key: razorpayKey });
+    const razorpayKey = process.env.RAZORPAY_KEY_TEST
+    res.json({
+      success: true,
+      message: "Razorpay key retrieved successfully.",
+      data: { key: razorpayKey }
+    });
   } catch (error) {
     console.log(error.message)
     res.status(500).json({ error: true, message: error.message, data: null });

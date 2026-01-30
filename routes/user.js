@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const User = require('../model/user');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
+const { validate } = require('../middleware/validate');
+const { registerSchema, loginSchema } = require('../validators/schemas');
+
 // Generate JWT Token
 const generateToken = (user) => {
   return jwt.sign(
@@ -17,16 +20,9 @@ const generateToken = (user) => {
   );
 };
 // REGISTER - Public route
-router.post('/register', asyncHandler(async (req, res) => {
+router.post('/register', validate(registerSchema), asyncHandler(async (req, res) => {
   const { name, email, phone, password } = req.body;
 
-  // Validation
-  if (!name || !email || !phone || !password) {
-    return res.status(400).json({
-      success: false,
-      message: 'All fields are required.'
-    });
-  }
   // Check if user exists
   const existingUser = await User.findOne({
     $or: [{ email }, { phone }]
@@ -59,7 +55,7 @@ router.post('/register', asyncHandler(async (req, res) => {
   });
 }));
 // LOGIN - Public route
-router.post('/login', asyncHandler(async (req, res) => {
+router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   // Find user
   const user = await User.findOne({ email });

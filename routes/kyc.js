@@ -3,9 +3,11 @@ const asyncHandler = require('express-async-handler');
 const router = express.Router();
 const UserKyc = require('../model/userKyc');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
+const { validate } = require('../middleware/validate');
+const { submitKycSchema, verifyKycSchema } = require('../validators/schemas');
 
 // Submit KYC
-router.post('/submit', authMiddleware, asyncHandler(async (req, res) => {
+router.post('/submit', authMiddleware, validate(submitKycSchema), asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
   // Check if KYC already exists
@@ -58,7 +60,7 @@ router.get('/pending', authMiddleware, adminMiddleware, asyncHandler(async (req,
   res.json({ success: true, data: pendingKyc });
 }));
 // Admin: Approve/Reject KYC
-router.put('/verify/:kycId', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.put('/verify/:kycId', authMiddleware, adminMiddleware, validate(verifyKycSchema), asyncHandler(async (req, res) => {
   const { status, creditLimit, rejectionReason } = req.body;
 
   const kyc = await UserKyc.findById(req.params.kycId);

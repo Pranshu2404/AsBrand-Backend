@@ -3,6 +3,8 @@ const asyncHandler = require('express-async-handler');
 const router = express.Router();
 const Order = require('../model/order');
 const { authMiddleware } = require('../middleware/auth.middleware');
+const { validate } = require('../middleware/validate');
+const { createOrderSchema, updateOrderSchema } = require('../validators/schemas');
 
 // Get all orders
 router.get('/', asyncHandler(async (req, res) => {
@@ -48,26 +50,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Create a new order
-router.post('/', authMiddleware, asyncHandler(async (req, res) => {
+router.post('/', authMiddleware, validate(createOrderSchema), asyncHandler(async (req, res) => {
     const { orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl } = req.body;
-
-    // Check if user is authenticated
-    if (!req.user || !req.user.id) {
-        return res.status(401).json({ success: false, message: "User not authorized." });
-    }
     const userID = req.user.id;
 
-    if (!items || !totalPrice || !shippingAddress || !paymentMethod || !orderTotal) {
-        return res.status(400).json({ success: false, message: "Items, totalPrice, shippingAddress, paymentMethod, and orderTotal are required." });
-    }
-
-    try {
-        const order = new Order({ userID, orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl });
-        const newOrder = await order.save();
-        res.json({ success: true, message: "Order created successfully.", data: newOrder });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
+    const order = new Order({ userID, orderStatus, items, totalPrice, shippingAddress, paymentMethod, couponCode, orderTotal, trackingUrl });
+    const newOrder = await order.save();
+    res.json({ success: true, message: "Order created successfully.", data: newOrder });
 }));
 
 // Update an order
