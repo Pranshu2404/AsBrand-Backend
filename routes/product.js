@@ -9,11 +9,11 @@ const asyncHandler = require('express-async-handler');
 router.get('/', asyncHandler(async (req, res) => {
     try {
         const products = await Product.find()
-        .populate('proCategoryId', 'id name')
-        .populate('proSubCategoryId', 'id name')
-        .populate('proBrandId', 'id name')
-        .populate('proVariantTypeId', 'id type')
-        .populate('proVariantId', 'id name');
+            .populate('proCategoryId', 'id name')
+            .populate('proSubCategoryId', 'id name')
+            .populate('proBrandId', 'id name')
+            .populate('proVariantTypeId', 'id type')
+            .populate('proVariantId', 'id name');
         res.json({ success: true, message: "Products retrieved successfully.", data: products });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -81,13 +81,13 @@ router.post('/', asyncHandler(async (req, res) => {
             fields.forEach((field, index) => {
                 if (req.files[field] && req.files[field].length > 0) {
                     const file = req.files[field][0];
-                    const imageUrl = `http://localhost:3000/image/products/${file.filename}`;
+                    const imageUrl = file.path;
                     imageUrls.push({ image: index + 1, url: imageUrl });
                 }
             });
 
             // Create a new product object with data
-            const newProduct = new Product({ name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId,proVariantTypeId, proVariantId, images: imageUrls });
+            const newProduct = new Product({ name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId, images: imageUrls });
 
             // Save the new product to the database
             await newProduct.save();
@@ -146,7 +146,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
             fields.forEach((field, index) => {
                 if (req.files[field] && req.files[field].length > 0) {
                     const file = req.files[field][0];
-                    const imageUrl = `http://localhost:3000/image/products/${file.filename}`;
+                    const imageUrl = file.path;
                     // Update the specific image URL in the images array
                     let imageEntry = productToUpdate.images.find(img => img.image === (index + 1));
                     if (imageEntry) {
