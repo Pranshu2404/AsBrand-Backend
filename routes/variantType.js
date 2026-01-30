@@ -31,15 +31,15 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Create a new variant type
 router.post('/', asyncHandler(async (req, res) => {
-    const { name ,type } = req.body;
+    const { name, type } = req.body;
     if (!name) {
         return res.status(400).json({ success: false, message: "Name is required." });
     }
 
     try {
-        const variantType = new VariantType({ name , type });
+        const variantType = new VariantType({ name, type });
         const newVariantType = await variantType.save();
-        res.json({ success: true, message: "VariantType created successfully.", data: null });
+        res.json({ success: true, message: "VariantType created successfully.", data: newVariantType });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -48,13 +48,13 @@ router.post('/', asyncHandler(async (req, res) => {
 // Update a variant type
 router.put('/:id', asyncHandler(async (req, res) => {
     const variantTypeID = req.params.id;
-    const { name ,type } = req.body;
+    const { name, type } = req.body;
     if (!name) {
         return res.status(400).json({ success: false, message: "Name is required." });
     }
 
     try {
-        const updatedVariantType = await VariantType.findByIdAndUpdate(variantTypeID, { name , type}, { new: true });
+        const updatedVariantType = await VariantType.findByIdAndUpdate(variantTypeID, { name, type }, { new: true });
         if (!updatedVariantType) {
             return res.status(404).json({ success: false, message: "VariantType not found." });
         }
@@ -73,7 +73,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
         if (variantCount > 0) {
             return res.status(400).json({ success: false, message: "Cannot delete variant type. It is associated with one or more variants." });
         }
-        
+
         // Check if any products reference this variant type
         const products = await Product.find({ proVariantTypeId: variantTypeID });
         if (products.length > 0) {

@@ -7,7 +7,7 @@ const asyncHandler = require('express-async-handler');
 // Get all variants
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const variants = await Variant.find().populate('variantTypeId').sort({'variantTypeId': 1});
+        const variants = await Variant.find().populate('variantTypeId').sort({ 'variantTypeId': 1 });
         res.json({ success: true, message: "Variants retrieved successfully.", data: variants });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -38,7 +38,7 @@ router.post('/', asyncHandler(async (req, res) => {
     try {
         const variant = new Variant({ name, variantTypeId });
         const newVariant = await variant.save();
-        res.json({ success: true, message: "Variant created successfully.", data: null });
+        res.json({ success: true, message: "Variant created successfully.", data: newVariant });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
