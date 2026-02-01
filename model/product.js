@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
+    // Basic Info
     name: {
         type: String,
         required: [true, 'Name is required'],
@@ -10,10 +11,14 @@ const productSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    quantity: {
-        type: Number,
-        required: true
+    sku: {
+        type: String,
+        unique: true,
+        sparse: true,
+        trim: true
     },
+
+    // Pricing
     price: {
         type: Number,
         required: true
@@ -21,6 +26,38 @@ const productSchema = new mongoose.Schema({
     offerPrice: {
         type: Number
     },
+    emiEligible: {
+        type: Boolean,
+        default: true
+    },
+
+    // Inventory
+    quantity: {
+        type: Number,
+        required: true
+    },
+    stockStatus: {
+        type: String,
+        enum: ['in_stock', 'out_of_stock', 'low_stock', 'pre_order'],
+        default: 'in_stock'
+    },
+    lowStockThreshold: {
+        type: Number,
+        default: 10
+    },
+
+    // Shipping
+    weight: {
+        type: Number, // in grams
+        default: 0
+    },
+    dimensions: {
+        length: { type: Number, default: 0 },
+        width: { type: Number, default: 0 },
+        height: { type: Number, default: 0 }
+    },
+
+    // Categories & References
     proCategoryId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
@@ -40,6 +77,42 @@ const productSchema = new mongoose.Schema({
         ref: 'VariantType'
     },
     proVariantId: [String],
+
+    // Product Details
+    tags: [{
+        type: String,
+        trim: true
+    }],
+    specifications: [{
+        key: { type: String, trim: true },
+        value: { type: String, trim: true }
+    }],
+    warranty: {
+        type: String,
+        trim: true
+    },
+
+    // Flags
+    featured: {
+        type: Boolean,
+        default: false
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+
+    // SEO
+    metaTitle: {
+        type: String,
+        trim: true
+    },
+    metaDescription: {
+        type: String,
+        trim: true
+    },
+
+    // Media
     images: [{
         image: {
             type: Number,
@@ -52,6 +125,27 @@ const productSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
+// Auto-update stock status based on quantity
+productSchema.pre('save', function (next) {
+    if (this.quantity <= 0) {
+        this.stockStatus = 'out_of_stock';
+    } else if (this.quantity <= this.lowStockThreshold) {
+        this.stockStatus = 'low_stock';
+    } else if (this.stockStatus === 'out_of_stock' || this.stockStatus === 'low_stock') {
+        this.stockStatus = 'in_stock';
+    }
+    next();
+});
+
+// Virtual for discount percentage
+productSchema.virtual('discountPercent').get(function () {
+    if (this.offerPrice && this.price > this.offerPrice) {
+        return Math.round(((this.price - this.offerPrice) / this.price) * 100);
+    }
+    return 0;
+});
+
 const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product;
+
