@@ -54,13 +54,30 @@ const orderSchema = new mongoose.Schema({
 
   paymentMethod: {
     type: String,
-    enum: ['cod', 'prepaid']
+    enum: ['cod', 'prepaid', 'razorpay', 'upi', 'card', 'netbanking']
+  },
+
+  // Payment tracking fields
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'created', 'paid', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  razorpayOrderId: {
+    type: String,
+    index: true
+  },
+  razorpayPaymentId: {
+    type: String
+  },
+  razorpaySignature: {
+    type: String
   },
 
   couponCode: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Coupon'
-},
+  },
   orderTotal: {
     subtotal: Number,
     discount: Number,
