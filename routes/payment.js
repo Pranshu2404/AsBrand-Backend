@@ -4,13 +4,66 @@ const router = express.Router();
 const dotenv = require('dotenv');
 dotenv.config();
 
+const { authMiddleware } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate');
 const { stripePaymentSchema } = require('../validators/schemas');
 
-// for stripe payment gateway
+const {
+  initiateOrder,
+  verifyPayment,
+  placeCodOrder,
+  handlePaymentFailure
+} = require('../controllers/paymentController');
+
+// ==========================================
+// RAZORPAY PAYMENT ROUTES (PRIMARY)
+// ==========================================
+
+/**
+ * @route POST /payment/initiate
+ * @desc Create order in DB + Razorpay, return razorpay_order_id
+ * @access Private (requires auth)
+ */
+router.post('/initiate', authMiddleware, asyncHandler(initiateOrder));
+
+/**
+ * @route POST /payment/verify
+ * @desc Verify Razorpay signature after payment success
+ * @access Private (requires auth)
+ */
+router.post('/verify', authMiddleware, asyncHandler(verifyPayment));
+
+/**
+ * @route POST /payment/cod
+ * @desc Place Cash on Delivery order
+ * @access Private (requires auth)
+ */
+router.post('/cod', authMiddleware, asyncHandler(placeCodOrder));
+
+/**
+ * @route POST /payment/failure
+ * @desc Record payment failure
+ * @access Private (requires auth)
+ */
+router.post('/failure', authMiddleware, asyncHandler(handlePaymentFailure));
+
+/**
+ * @route GET /payment/razorpay-key
+ * @desc Get Razorpay public key for frontend
+ * @access Public
+ */
+router.get('/razorpay-key', (req, res) => {
+  res.json({
+    success: true,
+    data: { key: process.env.RAZORPAY_KEY_ID }
+  });
+});
+
+// ==========================================
+// STRIPE PAYMENT ROUTES (BACKUP/ALTERNATIVE)
+// ==========================================
+
 const stripe = require('stripe')(process.env.STRIPE_SKRT_KET_TST);
-
-
 
 router.post('/stripe', validate(stripePaymentSchema), asyncHandler(async (req, res) => {
   try {
@@ -54,27 +107,19 @@ router.post('/stripe', validate(stripePaymentSchema), asyncHandler(async (req, r
   }
 }));
 
-
-
-
-
+// Legacy Razorpay key endpoint
 router.post('/razorpay', asyncHandler(async (req, res) => {
   try {
-    console.log('razorpay')
-    const razorpayKey = process.env.RAZORPAY_KEY_TEST
+    const razorpayKey = process.env.RAZORPAY_KEY_ID;
     res.json({
       success: true,
       message: "Razorpay key retrieved successfully.",
       data: { key: razorpayKey }
     });
   } catch (error) {
-    console.log(error.message)
+    console.log(error.message);
     res.status(500).json({ error: true, message: error.message, data: null });
   }
 }));
-
-
-
-
 
 module.exports = router;
