@@ -26,6 +26,10 @@ const productSchema = new mongoose.Schema({
     offerPrice: {
         type: Number
     },
+    discountPercentage: {
+        type: Number,
+        default: 0
+    },
     emiEligible: {
         type: Boolean,
         default: true
@@ -58,6 +62,11 @@ const productSchema = new mongoose.Schema({
     },
 
     // Categories & References
+    gender: {
+        type: String,
+        enum: ['Men', 'Women', 'Kids', 'Unisex'],
+        default: 'Unisex'
+    },
     proCategoryId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
@@ -137,12 +146,14 @@ productSchema.pre('save', function (next) {
     next();
 });
 
-// Virtual for discount percentage
-productSchema.virtual('discountPercent').get(function () {
+// Pre-save hook to calculate discount percentage
+productSchema.pre('save', function (next) {
     if (this.offerPrice && this.price > this.offerPrice) {
-        return Math.round(((this.price - this.offerPrice) / this.price) * 100);
+        this.discountPercentage = Math.round(((this.price - this.offerPrice) / this.price) * 100);
+    } else {
+        this.discountPercentage = 0;
     }
-    return 0;
+    next();
 });
 
 const Product = mongoose.model('Product', productSchema);

@@ -24,6 +24,7 @@ const clothingNames = [
 ];
 
 const brandNames = ['Nike', 'Adidas', 'Puma', 'Zara', 'H&M', 'Levis', 'Allen Solly'];
+// ... (keep your imports and arrays as they are)
 
 const seedProducts = async () => {
     try {
@@ -33,65 +34,55 @@ const seedProducts = async () => {
         // 1. Create Category
         let category = await Category.findOne({ name: 'Fashion' });
         if (!category) {
-            category = await Category.create({
-                name: 'Fashion',
-                image: sampleImages[0]
-            });
+            category = await Category.create({ name: 'Fashion', image: sampleImages[0] });
             console.log('Created Fashion Category');
-        } else {
-            console.log('Fashion Category Exists');
         }
 
         // 2. Create SubCategories
         const subCats = ['Men Clothing', 'Women Clothing'];
         const subCategoryDocs = [];
-
         for (const scName of subCats) {
             let sc = await SubCategory.findOne({ name: scName, categoryId: category._id });
-            if (!sc) {
-                sc = await SubCategory.create({ name: scName, categoryId: category._id });
-                console.log(`Created ${scName} SubCategory`);
-            }
+            if (!sc) sc = await SubCategory.create({ name: scName, categoryId: category._id });
             subCategoryDocs.push(sc);
         }
 
-        // 3. Create Brands (Linked to first subcategory for simplicity or random)
+        // 3. Create Brands
         const brandDocs = [];
         for (const bName of brandNames) {
-            // Just link to random subcategory
             const sc = subCategoryDocs[Math.floor(Math.random() * subCategoryDocs.length)];
             let brand = await Brand.findOne({ name: bName, subcategoryId: sc._id });
-            if (!brand) {
-                brand = await Brand.create({ name: bName, subcategoryId: sc._id });
-                console.log(`Created ${bName} Brand`);
-            }
+            if (!brand) brand = await Brand.create({ name: bName, subcategoryId: sc._id });
             brandDocs.push(brand);
         }
 
         // 4. Create Products
         const products = [];
-
         for (let i = 0; i < 50; i++) {
             const name = clothingNames[Math.floor(Math.random() * clothingNames.length)] + ' ' + (i + 1);
-            const price = Math.floor(Math.random() * (5000 - 500 + 1)) + 500; // 500 to 5000
+            const price = Math.floor(Math.random() * (5000 - 500 + 1)) + 500;
             const imageUrl = sampleImages[Math.floor(Math.random() * sampleImages.length)];
-
-            // Pick random subcategory and brand
             const subCat = subCategoryDocs[Math.floor(Math.random() * subCategoryDocs.length)];
-            // Ideally brand should belong to subcategory, but schema doesn't strictly enforce 'valid' relation check during insert, usually.
-            // But let's try to pick a brand that has this subcategoryId if possible, or just any brand.
-            // My brand creation logic linked random brands to random subcats. 
-            // Let's filter brands by subCat.
-            const validBrands = brandDocs.filter(b => b.subcategoryId.toString() === subCat._id.toString());
-            const brand = validBrands.length > 0
-                ? validBrands[Math.floor(Math.random() * validBrands.length)]
-                : brandDocs[0]; // Fallback
 
+            // Match brand to subcategory
+            const validBrands = brandDocs.filter(b => b.subcategoryId.toString() === subCat._id.toString());
+            const brand = validBrands.length > 0 ? validBrands[Math.floor(Math.random() * validBrands.length)] : brandDocs[0];
+
+            // Logic for fields
+            let gender = 'Unisex';
+            if (subCat.name.includes('Men')) gender = 'Men';
+            else if (subCat.name.includes('Women')) gender = 'Women';
+
+            const discount = Math.floor(Math.random() * 60);
+            const offerPrice = Math.floor(price * (1 - discount / 100));
+
+            // Fixed the push syntax here
             products.push({
                 name: name,
                 description: `High quality ${name}. Comfortable and stylish.`,
-                price: price, // Selling price
-                offerPrice: Math.floor(price * 0.8), // 20% off
+                price: price,
+                offerPrice: offerPrice,
+                gender: gender,
                 quantity: 100,
                 proCategoryId: category._id,
                 proSubCategoryId: subCat._id,
@@ -100,17 +91,16 @@ const seedProducts = async () => {
                     { image: 1, url: imageUrl },
                     { image: 2, url: imageUrl }
                 ],
-                // Required schema fields
                 isActive: true,
                 stockStatus: 'in_stock'
             });
         }
 
         await Product.insertMany(products);
-        console.log(`Successfully inserted ${products.length} products.`);
+        console.log(`✅ Successfully inserted ${products.length} products.`);
 
     } catch (error) {
-        console.error('Error seeding data:', error);
+        console.error('❌ Error seeding data:', error);
     } finally {
         await mongoose.disconnect();
         console.log('Disconnected');

@@ -8,7 +8,7 @@ const asyncHandler = require('express-async-handler');
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const { minPrice, maxPrice, sort, category, keyword } = req.query;
+        const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount } = req.query;
         let query = {};
 
         // Filter by Price
@@ -21,6 +21,23 @@ router.get('/', asyncHandler(async (req, res) => {
         // Filter by Category
         if (category) {
             query.proCategoryId = category;
+        }
+
+        // Filter by Gender
+        if (gender) {
+            query.gender = gender;
+        }
+
+        // Filter by Brand
+        if (brand) {
+            // brand can be a single ID or comma separated
+            const brandIds = brand.split(',');
+            query.proBrandId = { $in: brandIds };
+        }
+
+        // Filter by Discount
+        if (minDiscount) {
+            query.discountPercentage = { $gte: Number(minDiscount) };
         }
 
         // Search by keyword
