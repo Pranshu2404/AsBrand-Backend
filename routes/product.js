@@ -8,12 +8,43 @@ const asyncHandler = require('express-async-handler');
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const products = await Product.find()
+        const { minPrice, maxPrice, sort, category, keyword } = req.query;
+        let query = {};
+
+        // Filter by Price
+        if (minPrice || maxPrice) {
+            query.price = {};
+            if (minPrice) query.price.$gte = Number(minPrice);
+            if (maxPrice) query.price.$lte = Number(maxPrice);
+        }
+
+        // Filter by Category
+        if (category) {
+            query.proCategoryId = category;
+        }
+
+        // Search by keyword
+        if (keyword) {
+            query.name = { $regex: keyword, $options: 'i' };
+        }
+
+        let productsQuery = Product.find(query)
             .populate('proCategoryId', 'id name')
             .populate('proSubCategoryId', 'id name')
             .populate('proBrandId', 'id name')
             .populate('proVariantTypeId', 'id type')
             .populate('proVariantId', 'id name');
+
+        // Sorting
+        if (sort === 'price_asc') {
+            productsQuery = productsQuery.sort({ price: 1 });
+        } else if (sort === 'price_desc') {
+            productsQuery = productsQuery.sort({ price: -1 });
+        } else if (sort === 'newest') {
+            productsQuery = productsQuery.sort({ createdAt: -1 });
+        }
+
+        const products = await productsQuery;
         res.json({ success: true, message: "Products retrieved successfully.", data: products });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

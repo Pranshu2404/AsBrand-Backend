@@ -49,6 +49,9 @@ app.use('/users', require('./routes/user'));
 app.use('/orders', require('./routes/order'));
 app.use('/payment', require('./routes/payment'));
 app.use('/notification', require('./routes/notification'));
+app.use('/cart', require('./routes/cart'));
+app.use('/wishlist', require('./routes/wishlist'));
+app.use('/address', require('./routes/address'));
 
 //add krege ab emi or kyc routes hehe
 app.use('/emi', require('./routes/emi.js'))
@@ -56,7 +59,7 @@ app.use('/kyc', require('./routes/kyc.js'))
 app.use('/merchant', require('./routes/merchant.js'))
 
 // Initialize cron jobs
-const { initPaymentReminderCron } = require('./cron/paymentReminder');
+
 
 
 // Example route using asyncHandler directly in app.js
@@ -74,6 +77,6 @@ app.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
 
   // Start cron jobs after server is running
-  initPaymentReminderCron();
+
 });
 
