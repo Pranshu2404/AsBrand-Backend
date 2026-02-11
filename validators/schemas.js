@@ -91,14 +91,18 @@ const createOrderSchema = Joi.object({
         discount: Joi.number().default(0),
         total: Joi.number().required()
     }).required(),
-    trackingUrl: Joi.string().uri().allow('', null)
+    trackingUrl: Joi.string().uri().allow('', null),
+    shippingCharge: Joi.number().default(49)
 });
 
 const updateOrderSchema = Joi.object({
     orderStatus: Joi.string()
         .valid('pending', 'processing', 'shipped', 'delivered', 'cancelled')
         .required(),
-    trackingUrl: Joi.string().uri().allow('', null)
+    trackingUrl: Joi.string().uri().allow('', null),
+    deliveryStatus: Joi.string()
+        .valid('PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED')
+        .allow('', null)
 });
 
 // ==================== EMI SCHEMAS ====================
