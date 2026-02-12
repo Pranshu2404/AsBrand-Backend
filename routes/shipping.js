@@ -190,18 +190,29 @@ router.get('/track/:orderId', authMiddleware, asyncHandler(async (req, res) => {
  */
 router.post('/webhook', asyncHandler(async (req, res) => {
     try {
-        // Verify webhook token
-        const webhookToken = req.headers['x-api-key'] || req.headers['authorization'];
+        // Verify webhook token (optional — Shiprocket doesn't send custom headers for webhooks)
         const expectedToken = process.env.SHIPROCKET_WEBHOOK_TOKEN;
+        if (expectedToken) {
+            const webhookToken = req.headers['x-api-key'] || req.headers['authorization'];
+            // Only reject if a token IS provided but doesn't match
+            // Shiprocket sends no auth headers, so we allow headerless requests through
+            if (webhookToken && webhookToken !== expectedToken && webhookToken !== `Bearer ${expectedToken}`) {
+                return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+            }
+        }
 
-        if (expectedToken && webhookToken !== expectedToken && webhookToken !== `Bearer ${expectedToken}`) {
-            return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+        console.log('Webhook received:', JSON.stringify(req.body));
+
+        // Handle Shiprocket test ping (empty body or test payload)
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.json({ success: true, message: 'Webhook endpoint active' });
         }
 
         const { order_id, current_status, awb, courier_name, etd, shipment_id } = req.body;
 
         if (!order_id && !awb && !shipment_id) {
-            return res.status(400).json({ success: false, message: 'Missing order identification' });
+            // Could be a test/ping — acknowledge it
+            return res.json({ success: true, message: 'Webhook received (no order data)' });
         }
 
         // Find order by Shiprocket order_id, shipment_id, or AWB
