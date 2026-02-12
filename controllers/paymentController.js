@@ -36,7 +36,8 @@ const initiateOrder = async (req, res) => {
 
         // Apply discount if coupon exists (TODO: validate coupon)
         const discount = 0;
-        const total = subtotal - discount;
+        const shippingCharge = 49; // ₹49 flat shipping charge
+        const total = subtotal - discount + shippingCharge;
 
         // Create order in database with status 'created'
         const order = new Order({
@@ -44,10 +45,11 @@ const initiateOrder = async (req, res) => {
             items,
             totalPrice: total,
             shippingAddress,
-            paymentMethod,
+            paymentMethod: paymentMethod === 'cod' ? 'cod' : 'prepaid',
             couponCode,
             orderStatus: 'pending',
             paymentStatus: 'created',
+            shippingCharge,
             orderTotal: { subtotal, discount, total }
         });
         await order.save();
@@ -126,6 +128,7 @@ const verifyPayment = async (req, res) => {
             order.razorpayPaymentId = razorpay_payment_id;
             order.razorpaySignature = razorpay_signature;
             order.orderStatus = 'processing';
+            order.deliveryStatus = 'PENDING';
             await order.save();
 
             res.json({
@@ -172,8 +175,9 @@ const placeCodOrder = async (req, res) => {
             shippingAddress,
             paymentMethod: 'cod',
             couponCode,
-            orderStatus: 'pending',
+            orderStatus: 'processing',
             paymentStatus: 'pending', // Payment on delivery
+            deliveryStatus: 'PENDING',
             orderTotal: { subtotal, discount, total }
         });
         await order.save();

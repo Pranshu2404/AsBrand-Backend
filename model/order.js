@@ -86,7 +86,34 @@ const orderSchema = new mongoose.Schema({
   trackingUrl: {
     type: String
   },
-});
+
+  // Delivery / Shipping fields
+  shippingCharge: {
+    type: Number,
+    default: 0
+  },
+  deliveryStatus: {
+    type: String,
+    enum: ['PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    default: 'PENDING'
+  },
+  deliveryPartner: {
+    type: String
+  },
+  shipmentId: {
+    type: String,
+    index: true
+  },
+  awbCode: {
+    type: String
+  },
+  courierName: {
+    type: String
+  },
+  estimatedDeliveryDate: {
+    type: Date
+  },
+}, { timestamps: true });
 
 const Order = mongoose.model('Order', orderSchema);
 

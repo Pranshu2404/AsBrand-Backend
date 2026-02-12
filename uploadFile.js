@@ -45,8 +45,20 @@ const storagePoster = new CloudinaryStorage({
 
 const uploadPosters = multer({ storage: storagePoster });
 
+// Review Storage
+const storageReview = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'asbrand/reviews',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+  },
+});
+
+const uploadReview = multer({ storage: storageReview });
+
 module.exports = {
   uploadCategory,
   uploadProduct,
   uploadPosters,
+  uploadReview,
 };

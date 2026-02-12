@@ -33,6 +33,18 @@ router.get('/orderByUserId/:userId', asyncHandler(async (req, res) => {
 }));
 
 
+// Get current user's orders (must be ABOVE /:id to avoid wildcard match)
+router.get('/my-orders', authMiddleware, asyncHandler(async (req, res) => {
+    try {
+        const orders = await Order.find({ userID: req.user.id })
+            .populate('couponCode', 'id couponCode discountType discountAmount')
+            .sort({ _id: -1 });
+        res.json({ success: true, message: "Orders retrieved successfully.", data: orders });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}));
+
 // Get an order by ID
 router.get('/:id', asyncHandler(async (req, res) => {
     try {

@@ -91,14 +91,18 @@ const createOrderSchema = Joi.object({
         discount: Joi.number().default(0),
         total: Joi.number().required()
     }).required(),
-    trackingUrl: Joi.string().uri().allow('', null)
+    trackingUrl: Joi.string().uri().allow('', null),
+    shippingCharge: Joi.number().default(49)
 });
 
 const updateOrderSchema = Joi.object({
     orderStatus: Joi.string()
         .valid('pending', 'processing', 'shipped', 'delivered', 'cancelled')
         .required(),
-    trackingUrl: Joi.string().uri().allow('', null)
+    trackingUrl: Joi.string().uri().allow('', null),
+    deliveryStatus: Joi.string()
+        .valid('PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED')
+        .allow('', null)
 });
 
 // ==================== EMI SCHEMAS ====================
@@ -218,6 +222,24 @@ const stripePaymentSchema = Joi.object({
     description: Joi.string().required()
 });
 
+// ==================== REVIEW SCHEMAS ====================
+
+const createReviewSchema = Joi.object({
+    productID: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+        .messages({ 'string.pattern.base': 'Invalid product ID' }),
+    orderID: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+        .messages({ 'string.pattern.base': 'Invalid order ID' }),
+    rating: Joi.number().integer().min(1).max(5).required(),
+    title: Joi.string().max(100).allow('', null),
+    comment: Joi.string().max(1000).allow('', null)
+});
+
+const updateReviewSchema = Joi.object({
+    rating: Joi.number().integer().min(1).max(5),
+    title: Joi.string().max(100).allow('', null),
+    comment: Joi.string().max(1000).allow('', null)
+});
+
 // ==================== COMMON SCHEMAS ====================
 
 const mongoIdSchema = Joi.object({
@@ -245,6 +267,9 @@ module.exports = {
     verifyKycSchema,
     // Payment
     stripePaymentSchema,
+    // Reviews
+    createReviewSchema,
+    updateReviewSchema,
     // Common
     mongoIdSchema
 };
