@@ -45,7 +45,7 @@ const initiateOrder = async (req, res) => {
             items,
             totalPrice: total,
             shippingAddress,
-            paymentMethod,
+            paymentMethod: paymentMethod === 'cod' ? 'cod' : 'prepaid',
             couponCode,
             orderStatus: 'pending',
             paymentStatus: 'created',

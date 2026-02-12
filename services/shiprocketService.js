@@ -134,7 +134,7 @@ async function createShipment(order) {
         shipping_email: '',
         shipping_phone: '',
         order_items: orderItems,
-        payment_method: 'Prepaid',
+        payment_method: order.paymentMethod === 'cod' ? 'COD' : 'Prepaid',
         shipping_charges: order.shippingCharge || 0,
         giftwrap_charges: 0,
         transaction_charges: 0,

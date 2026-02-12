@@ -23,7 +23,7 @@ router.post('/generate/:orderId', authMiddleware, adminMiddleware, asyncHandler(
         }
 
         // Validate order is ready for shipment
-        if (order.paymentStatus !== 'paid') {
+        if (order.paymentStatus !== 'paid' && order.paymentMethod !== 'cod') {
             return res.status(400).json({
                 success: false,
                 message: `Cannot generate shipment. Payment status is "${order.paymentStatus}". Only paid orders can be shipped.`
