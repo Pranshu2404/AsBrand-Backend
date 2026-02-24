@@ -7,7 +7,9 @@ const asyncHandler = require('express-async-handler');
 // Get all brands
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const brands = await Brand.find().populate('subcategoryId').sort({ 'subcategoryId': 1 });
+        const brands = await Brand.find()
+            .populate({ path: 'subcategoryId', populate: { path: 'categoryId' } })
+            .sort({ 'subcategoryId': 1 });
         res.json({ success: true, message: "Brands retrieved successfully.", data: brands });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

@@ -64,8 +64,41 @@ const productSchema = new mongoose.Schema({
     // Categories & References
     gender: {
         type: String,
-        enum: ['Men', 'Women', 'Kids', 'Unisex'],
+        enum: ['Men', 'Women', 'Kids', 'Unisex', 'Boys', 'Girls'],
         default: 'Unisex'
+    },
+    material: {
+        type: String,
+        trim: true
+    },
+    fit: {
+        type: String,
+        enum: ['Regular Fit', 'Slim Fit', 'Relaxed Fit', 'Oversized', 'Skinny Fit'],
+        trim: true
+    },
+    pattern: {
+        type: String,
+        enum: ['Solid', 'Striped', 'Printed', 'Checked', 'Self Design', 'Graphic', 'Floral', 'Polka Dots'],
+        trim: true
+    },
+    sleeveLength: {
+        type: String,
+        enum: ['Full Sleeve', 'Half Sleeve', 'Sleeveless', '3/4 Sleeve', 'Roll-up Sleeve'],
+        trim: true
+    },
+    neckline: {
+        type: String,
+        enum: ['Round Neck', 'V-Neck', 'Collar', 'Mandarin Collar', 'Crew Neck', 'Polo', 'Scoop Neck'],
+        trim: true
+    },
+    occasion: {
+        type: String,
+        enum: ['Casual', 'Formal', 'Party', 'Sports', 'Ethnic', 'Lounge', 'Workwear'],
+        trim: true
+    },
+    careInstructions: {
+        type: String,
+        trim: true
     },
     proCategoryId: {
         type: mongoose.Schema.Types.ObjectId,

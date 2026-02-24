@@ -110,15 +110,35 @@ router.post('/', asyncHandler(async (req, res) => {
             } else if (err) {
                 // Handle other errors, if any
                 console.log(`Add product: ${err}`);
-                return res.json({ success: false, message: err });
+                return res.json({ success: false, message: err.message || 'An error occurred during upload' });
             }
 
             // Extract product data from the request body
-            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId } = req.body;
+            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                // Enhanced fields
+                sku, weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
+                featured, emiEligible, isActive, metaTitle, metaDescription,
+                // Clothing-specific fields
+                gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
+            } = req.body;
 
             // Check if any required fields are missing
             if (!name || !quantity || !price || !proCategoryId || !proSubCategoryId) {
                 return res.status(400).json({ success: false, message: "Required fields are missing." });
+            }
+
+            // Parse fields that may come as JSON strings from FormData
+            let parsedDimensions = dimensions;
+            if (typeof dimensions === 'string') {
+                try { parsedDimensions = JSON.parse(dimensions); } catch (e) { parsedDimensions = {}; }
+            }
+            let parsedTags = tags;
+            if (typeof tags === 'string') {
+                try { parsedTags = JSON.parse(tags); } catch (e) { parsedTags = []; }
+            }
+            let parsedSpecs = specifications;
+            if (typeof specifications === 'string') {
+                try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
 
             // Initialize an array to store image URLs
@@ -134,8 +154,35 @@ router.post('/', asyncHandler(async (req, res) => {
                 }
             });
 
-            // Create a new product object with data
-            const newProduct = new Product({ name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId, images: imageUrls });
+            // Create a new product object with all data
+            const newProduct = new Product({
+                name, description, quantity, price, offerPrice,
+                proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                // Enhanced fields
+                sku: sku || undefined,
+                weight: weight || 0,
+                dimensions: parsedDimensions || {},
+                stockStatus: stockStatus || 'in_stock',
+                lowStockThreshold: lowStockThreshold || 10,
+                tags: parsedTags || [],
+                specifications: parsedSpecs || [],
+                warranty: warranty || undefined,
+                featured: featured === 'true' || featured === true,
+                emiEligible: emiEligible !== 'false' && emiEligible !== false,
+                isActive: isActive !== 'false' && isActive !== false,
+                metaTitle: metaTitle || undefined,
+                metaDescription: metaDescription || undefined,
+                // Clothing-specific fields
+                gender: gender || undefined,
+                material: material || undefined,
+                fit: fit || undefined,
+                pattern: pattern || undefined,
+                sleeveLength: sleeveLength || undefined,
+                neckline: neckline || undefined,
+                occasion: occasion || undefined,
+                careInstructions: careInstructions || undefined,
+                images: imageUrls
+            });
 
             // Save the new product to the database
             await newProduct.save();
@@ -169,7 +216,13 @@ router.put('/:id', asyncHandler(async (req, res) => {
                 return res.status(500).json({ success: false, message: err.message });
             }
 
-            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId } = req.body;
+            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                // Enhanced fields
+                sku, weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
+                featured, emiEligible, isActive, metaTitle, metaDescription,
+                // Clothing-specific fields
+                gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
+            } = req.body;
 
             // Find the product by ID
             const productToUpdate = await Product.findById(productId);
@@ -177,7 +230,21 @@ router.put('/:id', asyncHandler(async (req, res) => {
                 return res.status(404).json({ success: false, message: "Product not found." });
             }
 
-            // Update product properties if provided
+            // Parse fields that may come as JSON strings from FormData
+            let parsedDimensions = dimensions;
+            if (typeof dimensions === 'string') {
+                try { parsedDimensions = JSON.parse(dimensions); } catch (e) { parsedDimensions = {}; }
+            }
+            let parsedTags = tags;
+            if (typeof tags === 'string') {
+                try { parsedTags = JSON.parse(tags); } catch (e) { parsedTags = []; }
+            }
+            let parsedSpecs = specifications;
+            if (typeof specifications === 'string') {
+                try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
+            }
+
+            // Update basic product properties if provided
             productToUpdate.name = name || productToUpdate.name;
             productToUpdate.description = description || productToUpdate.description;
             productToUpdate.quantity = quantity || productToUpdate.quantity;
@@ -188,6 +255,31 @@ router.put('/:id', asyncHandler(async (req, res) => {
             productToUpdate.proBrandId = proBrandId || productToUpdate.proBrandId;
             productToUpdate.proVariantTypeId = proVariantTypeId || productToUpdate.proVariantTypeId;
             productToUpdate.proVariantId = proVariantId || productToUpdate.proVariantId;
+
+            // Update enhanced fields
+            if (sku !== undefined) productToUpdate.sku = sku || undefined;
+            if (weight !== undefined) productToUpdate.weight = weight || 0;
+            if (parsedDimensions) productToUpdate.dimensions = parsedDimensions;
+            if (stockStatus) productToUpdate.stockStatus = stockStatus;
+            if (lowStockThreshold !== undefined) productToUpdate.lowStockThreshold = lowStockThreshold || 10;
+            if (parsedTags) productToUpdate.tags = parsedTags;
+            if (parsedSpecs) productToUpdate.specifications = parsedSpecs;
+            if (warranty !== undefined) productToUpdate.warranty = warranty;
+            if (featured !== undefined) productToUpdate.featured = featured === 'true' || featured === true;
+            if (emiEligible !== undefined) productToUpdate.emiEligible = emiEligible !== 'false' && emiEligible !== false;
+            if (isActive !== undefined) productToUpdate.isActive = isActive !== 'false' && isActive !== false;
+            if (metaTitle !== undefined) productToUpdate.metaTitle = metaTitle;
+            if (metaDescription !== undefined) productToUpdate.metaDescription = metaDescription;
+
+            // Update clothing-specific fields
+            if (gender !== undefined) productToUpdate.gender = gender || undefined;
+            if (material !== undefined) productToUpdate.material = material || undefined;
+            if (fit !== undefined) productToUpdate.fit = fit || undefined;
+            if (pattern !== undefined) productToUpdate.pattern = pattern || undefined;
+            if (sleeveLength !== undefined) productToUpdate.sleeveLength = sleeveLength || undefined;
+            if (neckline !== undefined) productToUpdate.neckline = neckline || undefined;
+            if (occasion !== undefined) productToUpdate.occasion = occasion || undefined;
+            if (careInstructions !== undefined) productToUpdate.careInstructions = careInstructions || undefined;
 
             // Iterate over the file fields to update images
             const fields = ['image1', 'image2', 'image3', 'image4', 'image5'];

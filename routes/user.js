@@ -5,7 +5,8 @@ const router = express.Router();
 const User = require('../model/user');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
 const { validate } = require('../middleware/validate');
-const { registerSchema, loginSchema } = require('../validators/schemas');
+const { registerSchema, loginSchema, sendOtpSchema, verifyOtpSchema } = require('../validators/schemas');
+const { sendOtpSms } = require('../services/smsService');
 
 // Generate JWT Token
 const generateToken = (user) => {
@@ -19,6 +20,104 @@ const generateToken = (user) => {
     { expiresIn: '7d' }
   );
 };
+
+// SEND OTP - Public route
+router.post('/send-otp', validate(sendOtpSchema), asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+
+  // Find user by phone
+  const user = await User.findOne({ phone });
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'No account found with this phone number. Please register first.'
+    });
+  }
+
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+  // Save OTP to user record
+  user.otp = otp;
+  user.otpExpiry = otpExpiry;
+  await user.save();
+
+  // Send OTP via Fast2SMS
+  await sendOtpSms(phone, otp);
+
+  res.json({
+    success: true,
+    message: 'OTP sent successfully.',
+    // Only include dev_otp when FAST2SMS_API_KEY is not set (dev mode)
+    ...(process.env.FAST2SMS_API_KEY ? {} : { dev_otp: otp })
+  });
+}));
+
+// VERIFY OTP - Public route
+router.post('/verify-otp', validate(verifyOtpSchema), asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body;
+
+  // Find user by phone
+  const user = await User.findOne({ phone });
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'No account found with this phone number.'
+    });
+  }
+
+  // Check OTP
+  if (!user.otp || !user.otpExpiry) {
+    return res.status(400).json({
+      success: false,
+      message: 'No OTP was requested. Please request a new OTP.'
+    });
+  }
+
+  // Check expiry
+  if (new Date() > user.otpExpiry) {
+    user.otp = null;
+    user.otpExpiry = null;
+    await user.save();
+    return res.status(400).json({
+      success: false,
+      message: 'OTP has expired. Please request a new one.'
+    });
+  }
+
+  // Check match
+  if (user.otp !== otp) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid OTP. Please try again.'
+    });
+  }
+
+  // OTP is valid — clear it and issue token
+  user.otp = null;
+  user.otpExpiry = null;
+  user.isVerified = true;
+  await user.save();
+
+  const token = generateToken(user);
+
+  res.json({
+    success: true,
+    message: 'Phone verified successfully.',
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      },
+      token
+    }
+  });
+}));
+
 // REGISTER - Public route
 router.post('/register', validate(registerSchema), asyncHandler(async (req, res) => {
   const { name, email, phone, password } = req.body;
