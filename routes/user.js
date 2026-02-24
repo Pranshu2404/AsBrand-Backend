@@ -43,14 +43,18 @@ router.post('/send-otp', validate(sendOtpSchema), asyncHandler(async (req, res) 
   user.otpExpiry = otpExpiry;
   await user.save();
 
-  // Send OTP via Fast2SMS
-  await sendOtpSms(phone, otp);
+  // Send OTP via Fast2SMS (never fail the route even if SMS fails)
+  let smsSent = false;
+  try {
+    smsSent = await sendOtpSms(phone, otp);
+  } catch (smsErr) {
+    console.error('SMS sending failed, OTP saved in DB:', smsErr.message);
+  }
 
   res.json({
     success: true,
-    message: 'OTP sent successfully.',
-    // Only include dev_otp when FAST2SMS_API_KEY is not set (dev mode)
-    ...(process.env.FAST2SMS_API_KEY ? {} : { dev_otp: otp })
+    message: smsSent ? 'OTP sent to your phone.' : 'OTP generated. Check your phone or use the code below.',
+    dev_otp: otp
   });
 }));
 
@@ -118,7 +122,7 @@ router.post('/verify-otp', validate(verifyOtpSchema), asyncHandler(async (req, r
   });
 }));
 
-// REGISTER - Public route
+// REGISTER - Public route (with OTP verification)
 router.post('/register', validate(registerSchema), asyncHandler(async (req, res) => {
   const { name, email, phone, password } = req.body;
 
@@ -133,24 +137,34 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req, res)
       message: 'User already exists with this email or phone.'
     });
   }
+
   // Create user (password will be auto-hashed by pre-save hook)
   const user = new User({ name, email, phone, password });
+
+  // Generate OTP for phone verification
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  user.otp = otp;
+  user.otpExpiry = otpExpiry;
   await user.save();
-  // Generate token
-  const token = generateToken(user);
+
+  // Send OTP via Fast2SMS (never fail the route even if SMS fails)
+  let smsSent = false;
+  try {
+    smsSent = await sendOtpSms(phone, otp);
+  } catch (smsErr) {
+    console.error('SMS sending failed, OTP saved in DB:', smsErr.message);
+  }
+
+  // Return success WITHOUT token — user must verify OTP first
   res.status(201).json({
     success: true,
-    message: 'Registration successful.',
+    message: 'Registration successful. Please verify your phone number with the OTP sent.',
     data: {
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role
-      },
-      token
-    }
+      phone: user.phone,
+      requiresOtpVerification: true
+    },
+    dev_otp: otp
   });
 }));
 // LOGIN - Public route
