@@ -51,6 +51,35 @@ const loginSchema = Joi.object({
         })
 });
 
+const sendOtpSchema = Joi.object({
+    phone: Joi.string()
+        .pattern(/^[6-9]\d{9}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'Please provide a valid 10-digit Indian phone number',
+            'any.required': 'Phone number is required'
+        })
+});
+
+const verifyOtpSchema = Joi.object({
+    phone: Joi.string()
+        .pattern(/^[6-9]\d{9}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'Please provide a valid 10-digit Indian phone number',
+            'any.required': 'Phone number is required'
+        }),
+    otp: Joi.string()
+        .length(6)
+        .pattern(/^\d{6}$/)
+        .required()
+        .messages({
+            'string.length': 'OTP must be exactly 6 digits',
+            'string.pattern.base': 'OTP must contain only digits',
+            'any.required': 'OTP is required'
+        })
+});
+
 // ==================== ORDER SCHEMAS ====================
 
 const createOrderSchema = Joi.object({
@@ -255,6 +284,8 @@ module.exports = {
     // User
     registerSchema,
     loginSchema,
+    sendOtpSchema,
+    verifyOtpSchema,
     // Order
     createOrderSchema,
     updateOrderSchema,
