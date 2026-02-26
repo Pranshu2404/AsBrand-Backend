@@ -5,6 +5,59 @@ const multer = require('multer');
 const { uploadProduct } = require('../uploadFile');
 const asyncHandler = require('express-async-handler');
 
+// Helper to robustly parse proVariants from FormData
+// Handles: single JSON string, array of JSON strings, array of objects, array of Dart .toString() strings
+function parseProVariants(raw) {
+    if (!raw) return [];
+    // Case 1: single JSON string like '[{"variantTypeId":"..."}]'
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch (e) { return []; }
+    }
+    // Case 2: already an array
+    if (Array.isArray(raw)) {
+        return raw.map(item => {
+            if (typeof item === 'object' && item !== null) return item; // already parsed
+            if (typeof item === 'string') {
+                // Try JSON parse first
+                try { return JSON.parse(item); } catch (e) { /* fall through */ }
+                // Handle Dart .toString() format: {key: value, key2: value2}
+                try {
+                    // Convert Dart map string to JSON by quoting keys and string values
+                    let fixed = item.trim();
+                    if (fixed.startsWith('{') && fixed.endsWith('}')) {
+                        // Extract key-value pairs manually
+                        const inner = fixed.slice(1, -1);
+                        const result = {};
+                        // Split by top-level commas (not inside brackets)
+                        let depth = 0, current = '', pairs = [];
+                        for (let c of inner) {
+                            if (c === '[') depth++;
+                            else if (c === ']') depth--;
+                            if (c === ',' && depth === 0) { pairs.push(current.trim()); current = ''; }
+                            else current += c;
+                        }
+                        if (current.trim()) pairs.push(current.trim());
+                        for (const pair of pairs) {
+                            const colonIdx = pair.indexOf(':');
+                            if (colonIdx === -1) continue;
+                            const key = pair.slice(0, colonIdx).trim();
+                            let val = pair.slice(colonIdx + 1).trim();
+                            // Parse array values like [Puff Sleeve, Three-Quarter Sleeve]
+                            if (val.startsWith('[') && val.endsWith(']')) {
+                                val = val.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+                            }
+                            result[key] = val;
+                        }
+                        return result;
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            return null;
+        }).filter(Boolean);
+    }
+    return [];
+}
+
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
@@ -143,10 +196,7 @@ router.post('/', asyncHandler(async (req, res) => {
             if (typeof specifications === 'string') {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
-            let parsedProVariants = proVariants;
-            if (typeof proVariants === 'string') {
-                try { parsedProVariants = JSON.parse(proVariants); } catch (e) { parsedProVariants = []; }
-            }
+            let parsedProVariants = parseProVariants(proVariants);
 
             // Initialize an array to store image URLs
             const imageUrls = [];
@@ -252,10 +302,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
             if (typeof specifications === 'string') {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
-            let parsedProVariants = proVariants;
-            if (typeof proVariants === 'string') {
-                try { parsedProVariants = JSON.parse(proVariants); } catch (e) { parsedProVariants = []; }
-            }
+            let parsedProVariants = parseProVariants(proVariants);
 
             // Update basic product properties if provided
             productToUpdate.name = name || productToUpdate.name;
