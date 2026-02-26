@@ -119,6 +119,15 @@ const productSchema = new mongoose.Schema({
         ref: 'VariantType'
     },
     proVariantId: [String],
+    // New: grouped variant types with their items
+    proVariants: [{
+        variantTypeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'VariantType'
+        },
+        variantTypeName: { type: String, trim: true },
+        items: [String]
+    }],
 
     // Product Details
     tags: [{
