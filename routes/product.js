@@ -217,7 +217,6 @@ router.post('/', asyncHandler(async (req, res) => {
                 proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants: parsedProVariants || [],
                 // Enhanced fields
-                // sku: sku || undefined,
                 weight: weight || 0,
                 dimensions: parsedDimensions || {},
                 stockStatus: stockStatus || 'in_stock',
@@ -243,15 +242,7 @@ router.post('/', asyncHandler(async (req, res) => {
             });
 
             // Save the new product to the database
-            try {
-                await newProduct.save();
-            } catch (saveErr) {
-                if (saveErr.code === 11000) {
-                    const field = Object.keys(saveErr.keyPattern || {})[0] || 'field';
-                    return res.status(409).json({ success: false, message: `A product with this ${field} already exists.` });
-                }
-                throw saveErr;
-            }
+            await newProduct.save();
 
             // Send a success response back to the client
             res.json({ success: true, message: "Product created successfully.", data: null });
@@ -367,15 +358,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
             });
 
             // Save the updated product
-            try {
-                await productToUpdate.save();
-            } catch (saveErr) {
-                if (saveErr.code === 11000) {
-                    const field = Object.keys(saveErr.keyPattern || {})[0] || 'field';
-                    return res.status(409).json({ success: false, message: `A product with this ${field} already exists.` });
-                }
-                throw saveErr;
-            }
+            await productToUpdate.save();
             res.json({ success: true, message: "Product updated successfully." });
         });
     } catch (error) {
