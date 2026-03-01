@@ -242,7 +242,20 @@ router.post('/', asyncHandler(async (req, res) => {
             });
 
             // Save the new product to the database
-            await newProduct.save();
+            try {
+                await newProduct.save();
+            } catch (saveError) {
+                // Handle MongoDB duplicate key error
+                if (saveError.code === 11000) {
+                    const field = Object.keys(saveError.keyPattern || {})[0] || 'unknown';
+                    console.error(`Duplicate key error on field '${field}':`, saveError.keyValue);
+                    return res.status(409).json({
+                        success: false,
+                        message: `A product with this ${field} already exists. Please use a different value.`
+                    });
+                }
+                throw saveError;
+            }
 
             // Send a success response back to the client
             res.json({ success: true, message: "Product created successfully.", data: null });
@@ -250,6 +263,13 @@ router.post('/', asyncHandler(async (req, res) => {
     } catch (error) {
         // Handle any errors that occur during the process
         console.error("Error creating product:", error);
+        // Handle Cloudinary 502 errors
+        if (error.http_code === 502 || error.message?.includes('502')) {
+            return res.status(502).json({
+                success: false,
+                message: 'Image upload service is temporarily unavailable. Please try again in a moment.'
+            });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 }));
