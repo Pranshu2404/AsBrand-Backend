@@ -243,7 +243,15 @@ router.post('/', asyncHandler(async (req, res) => {
             });
 
             // Save the new product to the database
-            await newProduct.save();
+            try {
+                await newProduct.save();
+            } catch (saveErr) {
+                if (saveErr.code === 11000) {
+                    const field = Object.keys(saveErr.keyPattern || {})[0] || 'field';
+                    return res.status(409).json({ success: false, message: `A product with this ${field} already exists.` });
+                }
+                throw saveErr;
+            }
 
             // Send a success response back to the client
             res.json({ success: true, message: "Product created successfully.", data: null });
@@ -360,7 +368,15 @@ router.put('/:id', asyncHandler(async (req, res) => {
             });
 
             // Save the updated product
-            await productToUpdate.save();
+            try {
+                await productToUpdate.save();
+            } catch (saveErr) {
+                if (saveErr.code === 11000) {
+                    const field = Object.keys(saveErr.keyPattern || {})[0] || 'field';
+                    return res.status(409).json({ success: false, message: `A product with this ${field} already exists.` });
+                }
+                throw saveErr;
+            }
             res.json({ success: true, message: "Product updated successfully." });
         });
     } catch (error) {
