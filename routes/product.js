@@ -144,6 +144,42 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 
 
+// Upload a single product image to Cloudinary
+router.post('/upload-image', asyncHandler(async (req, res) => {
+    try {
+        uploadProduct.single('image')(req, res, async function (err) {
+            if (err instanceof multer.MulterError) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    err.message = 'File size is too large. Maximum filesize is 5MB.';
+                }
+                return res.status(400).json({ success: false, message: err.message });
+            } else if (err) {
+                return res.status(500).json({ success: false, message: err.message || 'Upload failed' });
+            }
+
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: 'No image file provided' });
+            }
+
+            res.json({
+                success: true,
+                message: 'Image uploaded successfully',
+                data: { url: req.file.path }
+            });
+        });
+    } catch (error) {
+        console.error('Image upload error:', error);
+        if (error.http_code === 502 || error.name === 'TimeoutError' || error.http_code === 499) {
+            return res.status(502).json({
+                success: false,
+                message: 'Image upload service is temporarily unavailable. Please try again.'
+            });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+}));
+
+
 // create new product
 router.post('/', asyncHandler(async (req, res) => {
     try {
@@ -156,34 +192,27 @@ router.post('/', asyncHandler(async (req, res) => {
             { name: 'image5', maxCount: 1 }
         ])(req, res, async function (err) {
             if (err instanceof multer.MulterError) {
-                // Handle Multer errors, if any
                 if (err.code === 'LIMIT_FILE_SIZE') {
                     err.message = 'File size is too large. Maximum filesize is 5MB per image.';
                 }
                 console.log(`Add product: ${err}`);
                 return res.json({ success: false, message: err.message });
             } else if (err) {
-                // Handle other errors, if any
                 console.log(`Add product: ${err}`);
                 return res.json({ success: false, message: err.message || 'An error occurred during upload' });
             }
 
-            // Extract product data from the request body
             const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
-                proVariants,
-                // Enhanced fields
+                proVariants, imageUrls: preUploadedImageUrls,
                 weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
-                // Clothing-specific fields
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
             } = req.body;
 
-            // Check if any required fields are missing
             if (!name || !quantity || !price || !proCategoryId || !proSubCategoryId) {
                 return res.status(400).json({ success: false, message: "Required fields are missing." });
             }
 
-            // Parse fields that may come as JSON strings from FormData
             let parsedDimensions = dimensions;
             if (typeof dimensions === 'string') {
                 try { parsedDimensions = JSON.parse(dimensions); } catch (e) { parsedDimensions = {}; }
@@ -198,25 +227,38 @@ router.post('/', asyncHandler(async (req, res) => {
             }
             let parsedProVariants = parseProVariants(proVariants);
 
-            // Initialize an array to store image URLs
-            const imageUrls = [];
+            // Build images array: prefer pre-uploaded URLs, fallback to multer files
+            const imageList = [];
 
-            // Iterate over the file fields
-            const fields = ['image1', 'image2', 'image3', 'image4', 'image5'];
-            fields.forEach((field, index) => {
-                if (req.files[field] && req.files[field].length > 0) {
-                    const file = req.files[field][0];
-                    const imageUrl = file.path;
-                    imageUrls.push({ image: index + 1, url: imageUrl });
-                }
-            });
+            // Check for pre-uploaded image URLs (from the new upload-image endpoint)
+            let parsedPreUploadedUrls = preUploadedImageUrls;
+            if (typeof preUploadedImageUrls === 'string') {
+                try { parsedPreUploadedUrls = JSON.parse(preUploadedImageUrls); } catch (e) { parsedPreUploadedUrls = []; }
+            }
 
-            // Create a new product object with all data
+            if (Array.isArray(parsedPreUploadedUrls) && parsedPreUploadedUrls.length > 0) {
+                // Use pre-uploaded URLs
+                parsedPreUploadedUrls.forEach((item, index) => {
+                    if (typeof item === 'string' && item) {
+                        imageList.push({ image: index + 1, url: item });
+                    } else if (item && item.url) {
+                        imageList.push({ image: item.image || index + 1, url: item.url });
+                    }
+                });
+            } else {
+                // Fallback: use multer-uploaded files (legacy flow)
+                const fields = ['image1', 'image2', 'image3', 'image4', 'image5'];
+                fields.forEach((field, index) => {
+                    if (req.files && req.files[field] && req.files[field].length > 0) {
+                        imageList.push({ image: index + 1, url: req.files[field][0].path });
+                    }
+                });
+            }
+
             const newProduct = new Product({
                 name, description, quantity, price, offerPrice,
                 proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants: parsedProVariants || [],
-                // Enhanced fields
                 weight: weight || 0,
                 dimensions: parsedDimensions || {},
                 stockStatus: stockStatus || 'in_stock',
@@ -229,7 +271,6 @@ router.post('/', asyncHandler(async (req, res) => {
                 isActive: isActive !== 'false' && isActive !== false,
                 metaTitle: metaTitle || undefined,
                 metaDescription: metaDescription || undefined,
-                // Clothing-specific fields
                 gender: gender || undefined,
                 material: material || undefined,
                 fit: fit || undefined,
@@ -238,14 +279,12 @@ router.post('/', asyncHandler(async (req, res) => {
                 neckline: neckline || undefined,
                 occasion: occasion || undefined,
                 careInstructions: careInstructions || undefined,
-                images: imageUrls
+                images: imageList
             });
 
-            // Save the new product to the database
             try {
                 await newProduct.save();
             } catch (saveError) {
-                // Handle MongoDB duplicate key error
                 if (saveError.code === 11000) {
                     const field = Object.keys(saveError.keyPattern || {})[0] || 'unknown';
                     console.error(`Duplicate key error on field '${field}':`, saveError.keyValue);
@@ -257,13 +296,10 @@ router.post('/', asyncHandler(async (req, res) => {
                 throw saveError;
             }
 
-            // Send a success response back to the client
             res.json({ success: true, message: "Product created successfully.", data: null });
         });
     } catch (error) {
-        // Handle any errors that occur during the process
         console.error("Error creating product:", error);
-        // Handle Cloudinary 502 errors
         if (error.http_code === 502 || error.message?.includes('502')) {
             return res.status(502).json({
                 success: false,
@@ -294,21 +330,17 @@ router.put('/:id', asyncHandler(async (req, res) => {
             }
 
             const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
-                proVariants,
-                // Enhanced fields
+                proVariants, imageUrls: preUploadedImageUrls,
                 weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
-                // Clothing-specific fields
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
             } = req.body;
 
-            // Find the product by ID
             const productToUpdate = await Product.findById(productId);
             if (!productToUpdate) {
                 return res.status(404).json({ success: false, message: "Product not found." });
             }
 
-            // Parse fields that may come as JSON strings from FormData
             let parsedDimensions = dimensions;
             if (typeof dimensions === 'string') {
                 try { parsedDimensions = JSON.parse(dimensions); } catch (e) { parsedDimensions = {}; }
@@ -323,7 +355,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
             }
             let parsedProVariants = parseProVariants(proVariants);
 
-            // Update basic product properties if provided
             productToUpdate.name = name || productToUpdate.name;
             productToUpdate.description = description || productToUpdate.description;
             productToUpdate.quantity = quantity || productToUpdate.quantity;
@@ -336,7 +367,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
             productToUpdate.proVariantId = proVariantId || productToUpdate.proVariantId;
             if (parsedProVariants) productToUpdate.proVariants = parsedProVariants;
 
-            // Update enhanced fields
             if (weight !== undefined) productToUpdate.weight = weight || 0;
             if (parsedDimensions) productToUpdate.dimensions = parsedDimensions;
             if (stockStatus) productToUpdate.stockStatus = stockStatus;
@@ -350,7 +380,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
             if (metaTitle !== undefined) productToUpdate.metaTitle = metaTitle;
             if (metaDescription !== undefined) productToUpdate.metaDescription = metaDescription;
 
-            // Update clothing-specific fields
             if (gender !== undefined) productToUpdate.gender = gender || undefined;
             if (material !== undefined) productToUpdate.material = material || undefined;
             if (fit !== undefined) productToUpdate.fit = fit || undefined;
@@ -360,24 +389,42 @@ router.put('/:id', asyncHandler(async (req, res) => {
             if (occasion !== undefined) productToUpdate.occasion = occasion || undefined;
             if (careInstructions !== undefined) productToUpdate.careInstructions = careInstructions || undefined;
 
-            // Iterate over the file fields to update images
-            const fields = ['image1', 'image2', 'image3', 'image4', 'image5'];
-            fields.forEach((field, index) => {
-                if (req.files[field] && req.files[field].length > 0) {
-                    const file = req.files[field][0];
-                    const imageUrl = file.path;
-                    // Update the specific image URL in the images array
-                    let imageEntry = productToUpdate.images.find(img => img.image === (index + 1));
-                    if (imageEntry) {
-                        imageEntry.url = imageUrl;
-                    } else {
-                        // If the image entry does not exist, add it
-                        productToUpdate.images.push({ image: index + 1, url: imageUrl });
-                    }
-                }
-            });
+            // Handle images: prefer pre-uploaded URLs, fallback to multer files
+            let parsedPreUploadedUrls = preUploadedImageUrls;
+            if (typeof preUploadedImageUrls === 'string') {
+                try { parsedPreUploadedUrls = JSON.parse(preUploadedImageUrls); } catch (e) { parsedPreUploadedUrls = []; }
+            }
 
-            // Save the updated product
+            if (Array.isArray(parsedPreUploadedUrls) && parsedPreUploadedUrls.length > 0) {
+                // Replace images with pre-uploaded URLs
+                parsedPreUploadedUrls.forEach((item, index) => {
+                    const url = typeof item === 'string' ? item : item?.url;
+                    const imgNum = (typeof item === 'object' && item?.image) ? item.image : index + 1;
+                    if (url) {
+                        let imageEntry = productToUpdate.images.find(img => img.image === imgNum);
+                        if (imageEntry) {
+                            imageEntry.url = url;
+                        } else {
+                            productToUpdate.images.push({ image: imgNum, url: url });
+                        }
+                    }
+                });
+            } else {
+                // Fallback: use multer-uploaded files (legacy flow)
+                const fields = ['image1', 'image2', 'image3', 'image4', 'image5'];
+                fields.forEach((field, index) => {
+                    if (req.files && req.files[field] && req.files[field].length > 0) {
+                        const file = req.files[field][0];
+                        let imageEntry = productToUpdate.images.find(img => img.image === (index + 1));
+                        if (imageEntry) {
+                            imageEntry.url = file.path;
+                        } else {
+                            productToUpdate.images.push({ image: index + 1, url: file.path });
+                        }
+                    }
+                });
+            }
+
             await productToUpdate.save();
             res.json({ success: true, message: "Product updated successfully." });
         });
