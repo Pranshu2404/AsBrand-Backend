@@ -232,9 +232,15 @@ router.post('/', asyncHandler(async (req, res) => {
 
             // Check for pre-uploaded image URLs (from the new upload-image endpoint)
             let parsedPreUploadedUrls = preUploadedImageUrls;
+            console.log('[CreateProduct] Raw imageUrls:', preUploadedImageUrls);
+            console.log('[CreateProduct] Type:', typeof preUploadedImageUrls);
             if (typeof preUploadedImageUrls === 'string') {
-                try { parsedPreUploadedUrls = JSON.parse(preUploadedImageUrls); } catch (e) { parsedPreUploadedUrls = []; }
+                try { parsedPreUploadedUrls = JSON.parse(preUploadedImageUrls); } catch (e) {
+                    console.log('[CreateProduct] JSON parse failed:', e.message);
+                    parsedPreUploadedUrls = [];
+                }
             }
+            console.log('[CreateProduct] Parsed URLs:', parsedPreUploadedUrls);
 
             if (Array.isArray(parsedPreUploadedUrls) && parsedPreUploadedUrls.length > 0) {
                 // Use pre-uploaded URLs
@@ -254,6 +260,7 @@ router.post('/', asyncHandler(async (req, res) => {
                     }
                 });
             }
+            console.log('[CreateProduct] Final imageList:', imageList);
 
             const newProduct = new Product({
                 name, description, quantity, price, offerPrice,
