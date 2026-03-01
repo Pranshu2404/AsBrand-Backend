@@ -172,7 +172,7 @@ router.post('/', asyncHandler(async (req, res) => {
             const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants,
                 // Enhanced fields
-                sku, weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
+                weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
                 // Clothing-specific fields
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
@@ -217,7 +217,7 @@ router.post('/', asyncHandler(async (req, res) => {
                 proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants: parsedProVariants || [],
                 // Enhanced fields
-                sku: sku || undefined,
+                // sku: sku || undefined,
                 weight: weight || 0,
                 dimensions: parsedDimensions || {},
                 stockStatus: stockStatus || 'in_stock',
@@ -285,7 +285,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
             const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants,
                 // Enhanced fields
-                sku, weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
+                weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
                 // Clothing-specific fields
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
@@ -326,7 +326,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
             if (parsedProVariants) productToUpdate.proVariants = parsedProVariants;
 
             // Update enhanced fields
-            if (sku !== undefined) productToUpdate.sku = sku || undefined;
             if (weight !== undefined) productToUpdate.weight = weight || 0;
             if (parsedDimensions) productToUpdate.dimensions = parsedDimensions;
             if (stockStatus) productToUpdate.stockStatus = stockStatus;

@@ -11,12 +11,12 @@ const productSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    sku: {
-        type: String,
-        unique: true,
-        sparse: true,
-        trim: true
-    },
+    // sku: {
+    //     type: String,
+    //     unique: true,
+    //     sparse: true,
+    //     trim: true
+    // },
 
     // Pricing
     price: {
