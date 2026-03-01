@@ -9,7 +9,8 @@ dotenv.config();
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  timeout: 120000 // 120 seconds timeout to prevent 499 TimeoutError
 });
 
 // Category Storage
@@ -33,7 +34,7 @@ const storageProduct = new CloudinaryStorage({
     folder: 'asbrand/products',
     allowed_formats: ['jpg', 'png', 'jpeg'],
     transformation: [
-      { width: 1200, height: 1200, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+      { width: 800, height: 800, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
     ],
   },
 });
