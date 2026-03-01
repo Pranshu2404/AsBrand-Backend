@@ -18,6 +18,9 @@ const storageCategory = new CloudinaryStorage({
   params: {
     folder: 'asbrand/categories',
     allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 800, height: 800, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+    ],
   },
 });
 
@@ -29,10 +32,13 @@ const storageProduct = new CloudinaryStorage({
   params: {
     folder: 'asbrand/products',
     allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 1200, height: 1200, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+    ],
   },
 });
 
-const uploadProduct = multer({ storage: storageProduct });
+const uploadProduct = multer({ storage: storageProduct, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Poster Storage
 const storagePoster = new CloudinaryStorage({
@@ -40,6 +46,9 @@ const storagePoster = new CloudinaryStorage({
   params: {
     folder: 'asbrand/posters',
     allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 800, height: 800, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+    ],
   },
 });
 
@@ -51,6 +60,9 @@ const storageReview = new CloudinaryStorage({
   params: {
     folder: 'asbrand/reviews',
     allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    transformation: [
+      { width: 1000, height: 1000, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+    ],
   },
 });
 
