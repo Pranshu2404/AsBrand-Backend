@@ -62,7 +62,7 @@ function parseProVariants(raw) {
 router.get('/', asyncHandler(async (req, res) => {
     try {
         const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount } = req.query;
-        let query = {};
+        let query = { isApproved: { $ne: false } }; // Only show approved products to customers
 
         // Filter by Price
         if (minPrice || maxPrice) {

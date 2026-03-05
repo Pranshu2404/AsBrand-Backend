@@ -174,6 +174,12 @@ const productSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         default: null
+    },
+
+    // Admin must approve supplier-uploaded products
+    isApproved: {
+        type: Boolean,
+        default: true  // admin-listed products are auto-approved
     }
 }, { timestamps: true });
 

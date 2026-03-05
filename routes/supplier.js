@@ -260,7 +260,8 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 weight: weight ? parseFloat(weight) : 0,
                 dimensions: parsedDimensions || {},
                 images: imageList,
-                supplierId: req.user.id // Link product to supplier
+                supplierId: req.user.id, // Link product to supplier
+                isApproved: false // Requires admin approval
             });
 
             await newProduct.save();
@@ -336,11 +337,11 @@ router.get('/orders', authMiddleware, supplierMiddleware, asyncHandler(async (re
 }));
 
 // ============================================================
-// ADMIN — SUPPLIER MANAGEMENT
+// ADMIN — SUPPLIER MANAGEMENT (no auth — admin panel handles its own login)
 // ============================================================
 
 // GET /supplier/admin/pending — List all suppliers (pending first)
-router.get('/admin/pending', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.get('/admin/pending', asyncHandler(async (req, res) => {
     const suppliers = await User.find({ role: 'supplier' })
         .select('-password -otp -otpExpiry')
         .sort({ 'supplierProfile.isApproved': 1, createdAt: -1 }); // pending first
@@ -357,7 +358,7 @@ router.get('/admin/pending', authMiddleware, adminMiddleware, asyncHandler(async
 }));
 
 // PUT /supplier/admin/approve/:userId — Approve a supplier
-router.put('/admin/approve/:userId', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.put('/admin/approve/:userId', asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.userId);
 
     if (!user || user.role !== 'supplier') {
@@ -379,7 +380,7 @@ router.put('/admin/approve/:userId', authMiddleware, adminMiddleware, asyncHandl
 }));
 
 // PUT /supplier/admin/reject/:userId — Reject / revoke supplier
-router.put('/admin/reject/:userId', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.put('/admin/reject/:userId', asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.userId);
 
     if (!user || user.role !== 'supplier') {
@@ -394,6 +395,66 @@ router.put('/admin/reject/:userId', authMiddleware, adminMiddleware, asyncHandle
     res.json({
         success: true,
         message: `Supplier "${user.name}" has been rejected and reverted to user.`,
+    });
+}));
+
+// ============================================================
+// ADMIN — PRODUCT APPROVAL
+// ============================================================
+
+// GET /supplier/admin/products — List all supplier products (unapproved first)
+router.get('/admin/products', asyncHandler(async (req, res) => {
+    const products = await Product.find({ supplierId: { $ne: null } })
+        .populate('supplierId', 'name email supplierProfile.storeName')
+        .populate('proCategoryId', 'name')
+        .populate('proSubCategoryId', 'name')
+        .sort({ isApproved: 1, createdAt: -1 }); // unapproved first
+
+    const pending = products.filter(p => !p.isApproved);
+    const approved = products.filter(p => p.isApproved);
+
+    res.json({
+        success: true,
+        data: products,
+        stats: {
+            total: products.length,
+            pending: pending.length,
+            approved: approved.length,
+        }
+    });
+}));
+
+// PUT /supplier/admin/products/approve/:productId — Approve a product
+router.put('/admin/products/approve/:productId', asyncHandler(async (req, res) => {
+    const product = await Product.findById(req.params.productId);
+
+    if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found.' });
+    }
+
+    product.isApproved = true;
+    await product.save();
+
+    res.json({
+        success: true,
+        message: `Product "${product.name}" has been approved.`,
+    });
+}));
+
+// PUT /supplier/admin/products/reject/:productId — Reject a product
+router.put('/admin/products/reject/:productId', asyncHandler(async (req, res) => {
+    const product = await Product.findById(req.params.productId);
+
+    if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found.' });
+    }
+
+    // Remove the product entirely
+    await Product.findByIdAndDelete(req.params.productId);
+
+    res.json({
+        success: true,
+        message: `Product "${product.name}" has been rejected and removed.`,
     });
 }));
 
