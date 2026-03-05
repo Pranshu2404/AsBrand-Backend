@@ -173,23 +173,10 @@ router.get('/products', authMiddleware, supplierMiddleware, asyncHandler(async (
 // POST /supplier/products — Add a new product
 router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
     try {
-        uploadProduct.fields([
-            { name: 'image1', maxCount: 1 },
-            { name: 'image2', maxCount: 1 },
-            { name: 'image3', maxCount: 1 },
-            { name: 'image4', maxCount: 1 },
-            { name: 'image5', maxCount: 1 }
-        ])(req, res, async function (err) {
-            if (err instanceof multer.MulterError) {
-                if (err.code === 'LIMIT_FILE_SIZE') {
-                    return res.status(400).json({ success: false, message: 'File size too large. Max 5MB per image.' });
-                }
-                return res.status(400).json({ success: false, message: err.message });
-            }
-            if (err) {
-                return res.status(500).json({ success: false, message: 'Upload error.' });
-            }
+        const isJson = (req.headers['content-type'] || '').includes('application/json');
 
+        // Helper to create product from parsed body
+        async function createProduct(body, files) {
             const {
                 name, description, quantity, price, offerPrice,
                 proCategoryId, proSubCategoryId, proBrandId,
@@ -197,31 +184,25 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 gender, material, fit, pattern, sleeveLength, neckline, occasion,
                 careInstructions, tags, specifications, weight, dimensions,
                 preUploadedUrls
-            } = req.body;
+            } = body;
 
             if (!name || !quantity || !price || !proCategoryId || !proSubCategoryId) {
                 return res.status(400).json({ success: false, message: 'Required fields: name, quantity, price, category, subcategory.' });
             }
 
-            // Parse dimensions
+            // Parse JSON strings where needed
             let parsedDimensions = dimensions;
             if (typeof dimensions === 'string') {
                 try { parsedDimensions = JSON.parse(dimensions); } catch (e) { parsedDimensions = {}; }
             }
-
-            // Parse tags
             let parsedTags = tags;
             if (typeof tags === 'string') {
                 try { parsedTags = JSON.parse(tags); } catch (e) { parsedTags = []; }
             }
-
-            // Parse specifications
             let parsedSpecs = specifications;
             if (typeof specifications === 'string') {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
-
-            // Parse proVariants
             let parsedProVariants = proVariants;
             if (typeof proVariants === 'string') {
                 try { parsedProVariants = JSON.parse(proVariants); } catch (e) { parsedProVariants = []; }
@@ -232,7 +213,7 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
             if (preUploadedUrls) {
                 if (typeof preUploadedUrls === 'string') {
                     try { parsedPreUploadedUrls = JSON.parse(preUploadedUrls); } catch (e) { parsedPreUploadedUrls = []; }
-                } else {
+                } else if (Array.isArray(preUploadedUrls)) {
                     parsedPreUploadedUrls = preUploadedUrls;
                 }
             }
@@ -243,14 +224,14 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 parsedPreUploadedUrls.forEach((item, index) => {
                     if (typeof item === 'string') {
                         imageList.push({ image: index + 1, url: item });
-                    } else if (item.url) {
+                    } else if (item && item.url) {
                         imageList.push({ image: item.image || index + 1, url: item.url });
                     }
                 });
-            } else {
+            } else if (files) {
                 ['image1', 'image2', 'image3', 'image4', 'image5'].forEach((field, index) => {
-                    if (req.files && req.files[field] && req.files[field][0]) {
-                        imageList.push({ image: index + 1, url: req.files[field][0].path });
+                    if (files[field] && files[field][0]) {
+                        imageList.push({ image: index + 1, url: files[field][0].path });
                     }
                 });
             }
@@ -271,13 +252,35 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 weight: weight ? parseFloat(weight) : 0,
                 dimensions: parsedDimensions || {},
                 images: imageList,
-                supplierId: req.user.id, // Link product to supplier
-                isApproved: false // Requires admin approval
+                supplierId: req.user.id,
+                isApproved: false
             });
 
             await newProduct.save();
-            res.json({ success: true, message: 'Product created successfully.', data: newProduct });
-        });
+            res.json({ success: true, message: 'Product submitted for review.', data: newProduct });
+        }
+
+        if (isJson) {
+            // JSON body with pre-uploaded Cloudinary URLs — no multer needed
+            await createProduct(req.body, null);
+        } else {
+            // Multipart form-data — use multer
+            uploadProduct.fields([
+                { name: 'image1', maxCount: 1 },
+                { name: 'image2', maxCount: 1 },
+                { name: 'image3', maxCount: 1 },
+                { name: 'image4', maxCount: 1 },
+                { name: 'image5', maxCount: 1 }
+            ])(req, res, async function (err) {
+                if (err instanceof multer.MulterError) {
+                    return res.status(400).json({ success: false, message: err.message });
+                }
+                if (err) {
+                    return res.status(500).json({ success: false, message: 'Upload error.' });
+                }
+                await createProduct(req.body, req.files);
+            });
+        }
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
