@@ -59,6 +59,7 @@ app.use('/kyc', require('./routes/kyc.js'))
 app.use('/merchant', require('./routes/merchant.js'))
 app.use('/shipping', require('./routes/shipping.js'))
 app.use('/reviews', require('./routes/review.js'))
+app.use('/supplier', require('./routes/supplier.js'))
 
 // Initialize cron jobs
 

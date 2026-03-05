@@ -37,4 +37,14 @@ const adminMiddleware = (req, res, next) => {
   }
   next();
 };
-module.exports = { authMiddleware, adminMiddleware };
+// Supplier-only middleware (allows supplier + admin)
+const supplierMiddleware = (req, res, next) => {
+  if (req.user.role !== 'supplier' && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Supplier only.'
+    });
+  }
+  next();
+};
+module.exports = { authMiddleware, adminMiddleware, supplierMiddleware };
