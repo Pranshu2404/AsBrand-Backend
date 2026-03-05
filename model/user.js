@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
+    enum: ['user', 'supplier', 'admin'],
     default: 'user'
   },
   isVerified: {
@@ -39,6 +39,24 @@ const userSchema = new mongoose.Schema({
   otpExpiry: {
     type: Date,
     default: null
+  },
+  supplierProfile: {
+    storeName: { type: String, trim: true },
+    gstin: { type: String, trim: true },
+    pickupAddress: {
+      address: { type: String, trim: true },
+      city: { type: String, trim: true },
+      state: { type: String, trim: true },
+      pincode: { type: String, trim: true }
+    },
+    bankDetails: {
+      accountName: { type: String, trim: true },
+      accountNumber: { type: String, trim: true },
+      ifscCode: { type: String, trim: true },
+      bankName: { type: String, trim: true }
+    },
+    isApproved: { type: Boolean, default: true },
+    supplierSince: { type: Date }
   }
 }, { timestamps: true });
 // Hash password before saving

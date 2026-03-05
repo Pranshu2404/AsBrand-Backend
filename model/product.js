@@ -167,7 +167,14 @@ const productSchema = new mongoose.Schema({
             type: String,
             required: true
         }
-    }]
+    }],
+
+    // Supplier who listed this product (null = admin-listed)
+    supplierId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    }
 }, { timestamps: true });
 
 // Auto-update stock status based on quantity
