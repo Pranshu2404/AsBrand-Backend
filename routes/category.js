@@ -31,6 +31,31 @@ router.get('/:id', asyncHandler(async (req, res) => {
     }
 }));
 
+// Upload a single generic image to Cloudinary
+router.post('/upload-image', asyncHandler(async (req, res) => {
+    try {
+        uploadCategory.single('image')(req, res, async function (err) {
+            if (err instanceof multer.MulterError) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    err.message = 'File size is too large. Maximum filesize is 5MB.';
+                }
+                console.log(`Upload image: ${err}`);
+                return res.json({ success: false, message: err.message });
+            } else if (err) {
+                console.log(`Upload image: ${err}`);
+                return res.json({ success: false, message: err.message || 'An error occurred during upload' });
+            }
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: "No image file provided." });
+            }
+            res.json({ success: true, message: "Image uploaded successfully.", data: { url: req.file.path } });
+        });
+    } catch (err) {
+        console.log(`Error uploading image: ${err.message}`);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+}));
+
 // Create a new category with image upload
 router.post('/', asyncHandler(async (req, res) => {
     try {

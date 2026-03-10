@@ -11,6 +11,10 @@ const subCategorySchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category', // This should match the model name you use when you create the Category model
         required: [true, 'Category ID is required']
+    },
+    image: {
+        type: String,
+        default: 'no_url'
     }
 },{ timestamps: true });
 

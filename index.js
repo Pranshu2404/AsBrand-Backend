@@ -39,6 +39,7 @@ db.once('open', () => console.log('Connected to Database'));
 // Routes
 app.use('/categories', require('./routes/category'));
 app.use('/subCategories', require('./routes/subCategory'));
+app.use('/subSubCategories', require('./routes/subSubCategory'));
 app.use('/brands', require('./routes/brand'));
 app.use('/variantTypes', require('./routes/variantType'));
 app.use('/variants', require('./routes/variant'));

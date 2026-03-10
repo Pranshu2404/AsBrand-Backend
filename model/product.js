@@ -104,6 +104,10 @@ const productSchema = new mongoose.Schema({
         ref: 'SubCategory',
         required: true
     },
+    proSubSubCategoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubSubCategory'
+    },
     proBrandId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Brand'

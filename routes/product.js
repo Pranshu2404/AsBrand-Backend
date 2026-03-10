@@ -95,7 +95,12 @@ router.get('/', asyncHandler(async (req, res) => {
 
         // Search by keyword across multiple fields
         if (keyword) {
-            const keywordRegex = { $regex: keyword, $options: 'i' };
+            // Create a flexible regex that ignores spaces and hyphens
+            // e.g., "tshirt" -> "t[-\s]*s[-\s]*h[-\s]*i[-\s]*r[-\s]*t"
+            const sanitizedKeyword = keyword.replace(/[-\s]/g, '');
+            const flexibleRegexString = sanitizedKeyword.split('').join('[-\\s]*');
+            const keywordRegex = { $regex: flexibleRegexString, $options: 'i' };
+
             query.$or = [
                 { name: keywordRegex },
                 { description: keywordRegex },
@@ -113,6 +118,7 @@ router.get('/', asyncHandler(async (req, res) => {
         let productsQuery = Product.find(query)
             .populate('proCategoryId', 'id name')
             .populate('proSubCategoryId', 'id name')
+            .populate('proSubSubCategoryId', 'id name')
             .populate('proBrandId', 'id name')
             .populate('proVariantTypeId', 'id type')
             .populate('proVariantId', 'id name')

@@ -32,13 +32,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Create a new brand
 router.post('/', asyncHandler(async (req, res) => {
-    const { name, subcategoryId } = req.body;
+    const { name, subcategoryId, image } = req.body;
     if (!name || !subcategoryId) {
         return res.status(400).json({ success: false, message: "Name and subcategory ID are required." });
     }
 
     try {
-        const brand = new Brand({ name, subcategoryId });
+        const brand = new Brand({ name, subcategoryId, image });
         const newBrand = await brand.save();
         res.json({ success: true, message: "Brand created successfully.", data: newBrand });
     } catch (error) {
@@ -49,13 +49,13 @@ router.post('/', asyncHandler(async (req, res) => {
 // Update a brand
 router.put('/:id', asyncHandler(async (req, res) => {
     const brandID = req.params.id;
-    const { name, subcategoryId } = req.body;
+    const { name, subcategoryId, image } = req.body;
     if (!name || !subcategoryId) {
         return res.status(400).json({ success: false, message: "Name and subcategory ID are required." });
     }
 
     try {
-        const updatedBrand = await Brand.findByIdAndUpdate(brandID, { name, subcategoryId }, { new: true });
+        const updatedBrand = await Brand.findByIdAndUpdate(brandID, { name, subcategoryId, image }, { new: true });
         if (!updatedBrand) {
             return res.status(404).json({ success: false, message: "Brand not found." });
         }

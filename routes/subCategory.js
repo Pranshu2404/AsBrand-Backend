@@ -31,13 +31,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Create a new sub-category
 router.post('/', asyncHandler(async (req, res) => {
-    const { name, categoryId } = req.body;
+    const { name, categoryId, image } = req.body;
     if (!name || !categoryId) {
         return res.status(400).json({ success: false, message: "Name and category ID are required." });
     }
 
     try {
-        const subCategory = new SubCategory({ name, categoryId });
+        const subCategory = new SubCategory({ name, categoryId, image });
         const newSubCategory = await subCategory.save();
         res.json({ success: true, message: "Sub-category created successfully.", data: newSubCategory });
     } catch (error) {
@@ -48,7 +48,7 @@ router.post('/', asyncHandler(async (req, res) => {
 // Update a sub-category
 router.put('/:id', asyncHandler(async (req, res) => {
     const subCategoryID = req.params.id;
-    const { name, categoryId } = req.body;
+    const { name, categoryId, image } = req.body;
     console.log(req.body)
     console.log(subCategoryID)
     if (!name || !categoryId) {
@@ -56,7 +56,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
     }
 
     try {
-        const updatedSubCategory = await SubCategory.findByIdAndUpdate(subCategoryID, { name, categoryId }, { new: true });
+        const updatedSubCategory = await SubCategory.findByIdAndUpdate(subCategoryID, { name, categoryId, image }, { new: true });
         if (!updatedSubCategory) {
             return res.status(404).json({ success: false, message: "Sub-category not found." });
         }
