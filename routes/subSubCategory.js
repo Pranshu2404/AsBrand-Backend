@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const SubSubCategory = require('../model/subSubCategory');
-const { verifyAdmin } = require('../middlewares/auth');
 
 // Create a new SubSubCategory (Admin only)
-router.post('/', verifyAdmin, async (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { name, subCategoryId, categoryId, image } = req.body;
         
@@ -59,7 +58,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Update a SubSubCategory (Admin only)
-router.put('/:id', verifyAdmin, async (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const subSubCategory = await SubSubCategory.findByIdAndUpdate(
             req.params.id,
@@ -76,7 +75,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
 });
 
 // Delete a SubSubCategory (Admin only)
-router.delete('/:id', verifyAdmin, async (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const subSubCategory = await SubSubCategory.findByIdAndDelete(req.params.id);
         if (!subSubCategory) {
