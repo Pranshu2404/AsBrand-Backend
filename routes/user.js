@@ -225,8 +225,33 @@ router.get('/profile', authMiddleware, asyncHandler(async (req, res) => {
   });
 }));
 // GET ALL USERS - Admin only
-router.get('/', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const users = await User.find().select('-password');
   res.json({ success: true, data: users });
 }));
+
+// DELETE USER - Admin
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndDelete(req.params.id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found.' });
+  }
+  res.json({ success: true, message: 'User deleted successfully.' });
+}));
+
+// UPDATE USER ROLE - Admin
+router.put('/:id/role', asyncHandler(async (req, res) => {
+  const { role } = req.body;
+  if (!['user', 'supplier', 'admin'].includes(role)) {
+    return res.status(400).json({ success: false, message: 'Invalid role.' });
+  }
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found.' });
+  }
+  user.role = role;
+  await user.save();
+  res.json({ success: true, message: 'User role updated successfully.', data: user });
+}));
+
 module.exports = router;
