@@ -262,6 +262,8 @@ router.post('/', asyncHandler(async (req, res) => {
             if (typeof specifications === 'string') {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
+            const cleanId = (id) => (!id || id === 'null' || id === '') ? undefined : id;
+
             let parsedProVariants = parseProVariants(proVariants);
             let parsedSkus = parseSkus(skus);
 
@@ -302,7 +304,12 @@ router.post('/', asyncHandler(async (req, res) => {
 
             const newProduct = new Product({
                 name, description, quantity, price, offerPrice,
-                proCategoryId, proSubCategoryId, proSubSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                proCategoryId: cleanId(proCategoryId), 
+                proSubCategoryId: cleanId(proSubCategoryId), 
+                proSubSubCategoryId: cleanId(proSubSubCategoryId), 
+                proBrandId: cleanId(proBrandId), 
+                proVariantTypeId: cleanId(proVariantTypeId), 
+                proVariantId: proVariantId ? (Array.isArray(proVariantId) ? proVariantId.map(cleanId).filter(Boolean) : [cleanId(proVariantId)].filter(Boolean)) : [],
                 proVariants: parsedProVariants || [],
                 skus: parsedSkus || [],
                 weight: weight || 0,
@@ -407,12 +414,12 @@ router.put('/:id', asyncHandler(async (req, res) => {
             productToUpdate.quantity = quantity || productToUpdate.quantity;
             productToUpdate.price = price || productToUpdate.price;
             productToUpdate.offerPrice = offerPrice || productToUpdate.offerPrice;
-            productToUpdate.proCategoryId = proCategoryId || productToUpdate.proCategoryId;
-            productToUpdate.proSubCategoryId = proSubCategoryId || productToUpdate.proSubCategoryId;
-            productToUpdate.proSubSubCategoryId = proSubSubCategoryId || productToUpdate.proSubSubCategoryId;
-            productToUpdate.proBrandId = proBrandId || productToUpdate.proBrandId;
-            productToUpdate.proVariantTypeId = proVariantTypeId || productToUpdate.proVariantTypeId;
-            productToUpdate.proVariantId = proVariantId || productToUpdate.proVariantId;
+            productToUpdate.proCategoryId = cleanId(proCategoryId) || productToUpdate.proCategoryId;
+            productToUpdate.proSubCategoryId = cleanId(proSubCategoryId) || productToUpdate.proSubCategoryId;
+            if (proSubSubCategoryId !== undefined) productToUpdate.proSubSubCategoryId = cleanId(proSubSubCategoryId);
+            if (proBrandId !== undefined) productToUpdate.proBrandId = cleanId(proBrandId);
+            if (proVariantTypeId !== undefined) productToUpdate.proVariantTypeId = cleanId(proVariantTypeId);
+            if (proVariantId !== undefined) productToUpdate.proVariantId = Array.isArray(proVariantId) ? proVariantId.map(cleanId).filter(Boolean) : [cleanId(proVariantId)].filter(Boolean);
             if (parsedProVariants) productToUpdate.proVariants = parsedProVariants;
             if (parsedSkus) productToUpdate.skus = parsedSkus;
 
