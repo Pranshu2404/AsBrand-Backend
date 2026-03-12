@@ -58,6 +58,25 @@ function parseProVariants(raw) {
     return [];
 }
 
+// Helper to robustly parse skus from FormData
+// Expects an array of SKU objects or a JSON string resolving to an array of SKU objects
+function parseSkus(raw) {
+    if (!raw) return [];
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch (e) { return []; }
+    }
+    if (Array.isArray(raw)) {
+        return raw.map(item => {
+            if (typeof item === 'object' && item !== null) return item;
+            if (typeof item === 'string') {
+                try { return JSON.parse(item); } catch (e) { return null; }
+            }
+            return null;
+        }).filter(Boolean);
+    }
+    return [];
+}
+
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
@@ -220,8 +239,8 @@ router.post('/', asyncHandler(async (req, res) => {
                 return res.json({ success: false, message: err.message || 'An error occurred during upload' });
             }
 
-            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
-                proVariants, imageUrls: preUploadedImageUrls,
+            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proSubSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                proVariants, skus, imageUrls: preUploadedImageUrls,
                 weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
@@ -244,6 +263,7 @@ router.post('/', asyncHandler(async (req, res) => {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
             let parsedProVariants = parseProVariants(proVariants);
+            let parsedSkus = parseSkus(skus);
 
             // Build images array: prefer pre-uploaded URLs, fallback to multer files
             const imageList = [];
@@ -282,8 +302,9 @@ router.post('/', asyncHandler(async (req, res) => {
 
             const newProduct = new Product({
                 name, description, quantity, price, offerPrice,
-                proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                proCategoryId, proSubCategoryId, proSubSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
                 proVariants: parsedProVariants || [],
+                skus: parsedSkus || [],
                 weight: weight || 0,
                 dimensions: parsedDimensions || {},
                 stockStatus: stockStatus || 'in_stock',
@@ -354,8 +375,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
                 return res.status(500).json({ success: false, message: err.message });
             }
 
-            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
-                proVariants, imageUrls: preUploadedImageUrls,
+            const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proSubSubCategoryId, proBrandId, proVariantTypeId, proVariantId,
+                proVariants, skus, imageUrls: preUploadedImageUrls,
                 weight, dimensions, stockStatus, lowStockThreshold, tags, specifications, warranty,
                 featured, emiEligible, isActive, metaTitle, metaDescription,
                 gender, material, fit, pattern, sleeveLength, neckline, occasion, careInstructions
@@ -379,6 +400,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
             let parsedProVariants = parseProVariants(proVariants);
+            let parsedSkus = parseSkus(skus);
 
             productToUpdate.name = name || productToUpdate.name;
             productToUpdate.description = description || productToUpdate.description;
@@ -387,10 +409,12 @@ router.put('/:id', asyncHandler(async (req, res) => {
             productToUpdate.offerPrice = offerPrice || productToUpdate.offerPrice;
             productToUpdate.proCategoryId = proCategoryId || productToUpdate.proCategoryId;
             productToUpdate.proSubCategoryId = proSubCategoryId || productToUpdate.proSubCategoryId;
+            productToUpdate.proSubSubCategoryId = proSubSubCategoryId || productToUpdate.proSubSubCategoryId;
             productToUpdate.proBrandId = proBrandId || productToUpdate.proBrandId;
             productToUpdate.proVariantTypeId = proVariantTypeId || productToUpdate.proVariantTypeId;
             productToUpdate.proVariantId = proVariantId || productToUpdate.proVariantId;
             if (parsedProVariants) productToUpdate.proVariants = parsedProVariants;
+            if (parsedSkus) productToUpdate.skus = parsedSkus;
 
             if (weight !== undefined) productToUpdate.weight = weight || 0;
             if (parsedDimensions) productToUpdate.dimensions = parsedDimensions;

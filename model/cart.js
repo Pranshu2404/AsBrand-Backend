@@ -19,6 +19,9 @@ const cartSchema = new mongoose.Schema({
             default: 1,
             min: 1
         },
+        variant: {
+            type: String
+        },
         emiMonths: {
             type: Number,
             default: 3
