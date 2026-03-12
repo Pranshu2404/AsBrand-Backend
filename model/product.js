@@ -126,6 +126,15 @@ const productSchema = new mongoose.Schema({
         variantTypeName: { type: String, trim: true },
         items: [String]
     }],
+    
+    // Auto-generated stock keeping units (SKUs) based on variants
+    skus: [{
+        skuId: { type: String, trim: true },
+        attributes: { type: Map, of: String }, // e.g {"Color": "Black", "Size": "M"}
+        stock: { type: Number, default: 0 },
+        price: { type: Number },
+        image: { type: String }
+    }],
 
     // Product Details
     tags: [{
