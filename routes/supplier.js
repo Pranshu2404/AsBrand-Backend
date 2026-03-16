@@ -3,11 +3,12 @@ const router = express.Router();
 const asyncHandler = require('express-async-handler');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const User = require('../model/user');
 const Product = require('../model/product');
 const Order = require('../model/order');
 const { authMiddleware, adminMiddleware, supplierMiddleware } = require('../middleware/auth.middleware');
-const { uploadProduct } = require('../uploadFile');
+const { uploadProduct, uploadDocument } = require('../uploadFile');
 
 // Generate a fresh JWT with updated role
 const generateToken = (user) => {
@@ -19,11 +20,57 @@ const generateToken = (user) => {
 };
 
 // ============================================================
-// SUPPLIER REGISTRATION
+// SUPPLIER REGISTRATION & VERIFICATION
 // ============================================================
 
+// POST /supplier/verify-gst — Verify GST with Cashfree API
+router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
+    const { gstin } = req.body;
+    if (!gstin) {
+        return res.status(400).json({ success: false, message: 'GSTIN is required.' });
+    }
+
+    try {
+        const isProd = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION';
+        const url = isProd
+            ? 'https://api.cashfree.com/verification/gstin'
+            : 'https://sandbox.cashfree.com/verification/gstin';
+
+        const response = await axios.post(
+            url,
+            { GSTIN: gstin },
+            {
+                headers: {
+                    'x-client-id': process.env.CASHFREE_CLIENT_ID,
+                    'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        if (response.data && response.data.status === 'VALID') {
+            res.json({
+                success: true,
+                message: 'GST verified successfully',
+                data: response.data.legal_name
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid GSTIN or verification failed'
+            });
+        }
+    } catch (error) {
+        console.error('GST Verification Error:', error.response?.data || error.message);
+        res.status(500).json({
+            success: false,
+            message: error.response?.data?.message || 'Error verifying GSTIN with provider.'
+        });
+    }
+}));
+
 // POST /supplier/register — Apply to become a supplier
-router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
+router.post('/register', authMiddleware, uploadDocument.single('udyamDocument'), asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -38,17 +85,40 @@ router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Admin cannot register as supplier.' });
     }
 
-    const { storeName, gstin, pickupAddress, bankDetails } = req.body;
+    let { storeName, gstin, gstVerified, udyamRegistration, pickupAddress, bankDetails } = req.body;
+
+    // Parse stringified JSON fields if sent as FormData
+    if (typeof pickupAddress === 'string') {
+        try { pickupAddress = JSON.parse(pickupAddress); } catch (e) { pickupAddress = {}; }
+    }
+    if (typeof bankDetails === 'string') {
+        try { bankDetails = JSON.parse(bankDetails); } catch (e) { bankDetails = {}; }
+    }
+    
+    // Parse boolean if it's sent as string
+    if (typeof gstVerified === 'string') {
+        gstVerified = gstVerified === 'true';
+    }
 
     if (!storeName || !pickupAddress || !pickupAddress.address || !pickupAddress.city || !pickupAddress.state || !pickupAddress.pincode) {
         return res.status(400).json({ success: false, message: 'Store name and pickup address are required.' });
     }
+
+    // Check if either GST or Udyam is provided
+    if (!gstVerified && (!udyamRegistration || !req.file)) {
+        return res.status(400).json({ success: false, message: 'Either a verified GSTIN or Udyam Registration with document is required.' });
+    }
+
+    const udyamDocumentUrl = req.file ? req.file.path : '';
 
     // Update user to supplier
     user.role = 'supplier';
     user.supplierProfile = {
         storeName,
         gstin: gstin || '',
+        gstVerified: gstVerified || false,
+        udyamRegistration: udyamRegistration || '',
+        udyamDocument: udyamDocumentUrl,
         pickupAddress,
         bankDetails: bankDetails || {},
         isApproved: false, // requires admin approval

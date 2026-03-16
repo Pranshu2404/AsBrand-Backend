@@ -69,9 +69,21 @@ const storageReview = new CloudinaryStorage({
 
 const uploadReview = multer({ storage: storageReview });
 
+// Document Storage
+const storageDocument = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'asbrand/documents',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'pdf'],
+  },
+});
+
+const uploadDocument = multer({ storage: storageDocument, limits: { fileSize: 10 * 1024 * 1024 } });
+
 module.exports = {
   uploadCategory,
   uploadProduct,
   uploadPosters,
   uploadReview,
+  uploadDocument,
 };
