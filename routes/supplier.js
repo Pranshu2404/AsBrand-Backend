@@ -24,7 +24,7 @@ const generateToken = (user) => {
 // ============================================================
 
 // POST /supplier/verify-gst — Verify GST with RapidAPI
-router.post('/verify-gst', asyncHandler(async (req, res) => {
+router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
     const { gstin } = req.body;
     if (!gstin) {
         return res.status(400).json({ success: false, message: 'GSTIN is required.' });
@@ -37,8 +37,8 @@ router.post('/verify-gst', asyncHandler(async (req, res) => {
             return res.status(500).json({ success: false, message: 'RapidAPI URL not configured in server.' });
         }
 
-        // Most RapidAPI GST endpoints prepend the GSTIN at the end of the URL or as a query parameter.
-        // We assume the URL requires the GSTIN at the end. Adjust if your chosen API uses POST or query params        const endpointUrl = `${url}/v1/gstin/${gstin}/details`; // the new Rapidapi expects this format
+        // We assume the URL requires the GSTIN at the end. Adjust if your chosen API uses POST or query params        
+        const endpointUrl = `${url}/v1/gstin/${gstin}/details`; // the new Rapidapi expects this format
 
         const response = await axios.get(
             endpointUrl,
