@@ -62,12 +62,13 @@ router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
             });
         }
 
-        const businessName = payload.trade_name || payload.legal_name || payload.enterprise_name || payload.enterpriseName || 'Verified GST Business';  // Try mapping common legal name fields (lgnm, legal_name, tradeName, etc.)
+        const businessName = payload.trade_name || payload.legal_name || payload.enterprise_name || payload.enterpriseName || 'Verified GST Business';
 
         res.json({
             success: true,
             message: 'GST verified successfully',
-            data: businessName
+            data: businessName,
+            verificationData: JSON.stringify(payload)
         });
     } catch (error) {
         console.error('GST Verification Error:', error.response?.data || error.message);
@@ -169,13 +170,14 @@ router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
             return res.status(408).json({ success: false, message: 'Udyam verification timed out waiting for results' });
         }
 
-        const rawResult = resultData.result || resultData.source_output || {};
+        const rawResult = resultData.result || resultData.source_output || resultData || {};
         const businessName = rawResult.enterprise_name || rawResult.legal_name || 'Verified Udyam Business';
 
         res.json({
             success: true,
             message: 'Udyam verified successfully',
-            data: businessName
+            data: businessName,
+            verificationData: JSON.stringify(rawResult)
         });
     } catch (error) {
         console.error('Udyam Verification Error:', error.response?.data || error.message);
@@ -202,9 +204,12 @@ router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Admin cannot register as supplier.' });
     }
 
-    let { storeName, gstin, gstVerified, udyamRegistration, udyamVerified, pickupAddress, bankDetails } = req.body;
+    let { storeName, gstin, gstVerified, udyamRegistration, udyamVerified, verificationData, pickupAddress, bankDetails } = req.body;
 
     // Parse stringified JSON fields if sent as FormData
+    if (typeof verificationData === 'string') {
+        try { verificationData = JSON.parse(verificationData); } catch (e) { verificationData = {}; }
+    }
     if (typeof pickupAddress === 'string') {
         try { pickupAddress = JSON.parse(pickupAddress); } catch (e) { pickupAddress = {}; }
     }
@@ -253,6 +258,7 @@ router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
         gstVerified: gstVerified || false,
         udyamRegistration: udyamRegistration || '',
         udyamVerified: udyamVerified || false,
+        verificationData: verificationData || {},
         pickupAddress,
         bankDetails: bankDetails || {},
         isApproved: false, // requires admin approval

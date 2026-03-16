@@ -52,6 +52,13 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+    verificationData: {
+      businessName: { type: String, trim: true },
+      businessAddress: { type: String, trim: true },
+      entityType: { type: String, trim: true },
+      rawGstData: { type: String }, // Stringified JSON response representing 'who is the person'
+      rawUdyamData: { type: String }
+    },
     pickupAddress: {
       address: { type: String, trim: true },
       city: { type: String, trim: true },
