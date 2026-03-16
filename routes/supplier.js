@@ -38,8 +38,7 @@ router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
         }
 
         // Most RapidAPI GST endpoints prepend the GSTIN at the end of the URL or as a query parameter.
-        // We assume the URL requires the GSTIN at the end. Adjust if your chosen API uses POST or query params.
-        const endpointUrl = url.endsWith('/') ? `${url}${gstin}` : `${url}/${gstin}`;
+        // We assume the URL requires the GSTIN at the end. Adjust if your chosen API uses POST or query params        const endpointUrl = `${url}/v1/gstin/${gstin}/details`; // the new Rapidapi expects this format
 
         const response = await axios.get(
             endpointUrl,
@@ -59,12 +58,11 @@ router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
         if (!payload || resData.error) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid GSTIN or verification failed'
+                message: 'Invalid GST number or verification failed'
             });
         }
 
-        // Try mapping common legal name fields (lgnm, legal_name, tradeName, etc.)
-        const businessName = payload.legal_name || payload.legalName || payload.lgnm || payload.tradeName || payload.tradeNam || payload.business_name || 'Verified Business';
+        const businessName = payload.trade_name || payload.legal_name || payload.enterprise_name || payload.enterpriseName || 'Verified GST Business';  // Try mapping common legal name fields (lgnm, legal_name, tradeName, etc.)
 
         res.json({
             success: true,
@@ -80,7 +78,6 @@ router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
     }
 }));
 
-// POST /supplier/verify-udyam — Verify Udyam with RapidAPI
 router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
     const { udyam } = req.body;
     if (!udyam) {
@@ -88,36 +85,92 @@ router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
     }
 
     try {
-        const url = process.env.RAPIDAPI_UDYAM_URL || process.env.RAPIDAPI_URL;
-        
-        if (!url) {
-            return res.status(500).json({ success: false, message: 'RapidAPI URL not configured in server.' });
-        }
+        const host = process.env.RAPIDAPI_UDYAM_HOST || process.env.RAPIDAPI_HOST || 'udyam-aadhaar-verification.p.rapidapi.com';
+        const baseUrl = process.env.RAPIDAPI_UDYAM_URL || process.env.RAPIDAPI_URL || `https://${host}`;
 
-        const endpointUrl = url.endsWith('/') ? `${url}${udyam}` : `${url}/${udyam}`;
+        // 1. Submit the async task
+        const { v4: uuidv4 } = require('uuid');
+        const taskId = uuidv4();
+        const groupId = uuidv4();
 
-        const response = await axios.get(
-            endpointUrl,
-            {
-                headers: {
-                    'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-                    'x-rapidapi-host': process.env.RAPIDAPI_HOST,
-                    'Content-Type': 'application/json'
+        // We prepare the payload taking into consideration normal Udyam API structures,
+        // while also including the custom payload from RapidAPI example provided by user
+        const postOptions = {
+            method: 'POST',
+            url: baseUrl.endsWith('verify_with_source/udyam_aadhaar') 
+                ? baseUrl 
+                : `${baseUrl}/v3/tasks/async/verify_with_source/udyam_aadhaar`,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-rapidapi-host': host,
+                'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            },
+            data: {
+                task_id: taskId,
+                group_id: groupId,
+                data: {
+                    udyam_registration_no: udyam,
+                    id_number: udyam,
+                    "0":"U","1":"s","2":"e","3":" ","4":"g","5":"e","6":"t","7":" ","8":"c","9":"a","10":"l","11":"l" 
                 }
             }
-        );
+        };
 
-        const resData = response.data;
-        const payload = resData.data || resData.result || resData;
-        
-        if (!payload || resData.error) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid Udyam number or verification failed'
-            });
+        const postResponse = await axios.request(postOptions);
+        const requestId = postResponse.data.request_id;
+
+        if (!requestId) {
+            return res.status(500).json({ success: false, message: 'Failed to initiate Udyam verification task' });
         }
 
-        const businessName = payload.enterprise_name || payload.enterpriseName || payload.legal_name || 'Verified Udyam Business';
+        // 2. Poll the GET endpoint for results
+        const getUrl = baseUrl.includes('/v3/tasks') 
+            ? `${baseUrl.split('/v3/tasks')[0]}/v3/tasks?request_id=${requestId}`
+            : `${baseUrl}/v3/tasks?request_id=${requestId}`;
+
+        const getOptions = {
+            method: 'GET',
+            url: getUrl,
+            headers: {
+                'x-rapidapi-host': host,
+                'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            }
+        };
+
+        let resultData = null;
+        let attempts = 0;
+        const maxAttempts = 8;
+        
+        while (attempts < maxAttempts) {
+            // Need to stall for at least 2 seconds before polling
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const getResponse = await axios.request(getOptions);
+            const tasks = getResponse.data;
+            
+            if (Array.isArray(tasks) && tasks.length > 0) {
+                const task = tasks[0];
+                
+                if (task.status === 'completed') {
+                    resultData = task;
+                    break;
+                } else if (task.status === 'failed') {
+                    console.error("RapidAPI Task Failed:", task);
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: task.message || task.error || 'Udyam verification failed' 
+                    });
+                }
+            }
+            attempts++;
+        }
+
+        if (!resultData) {
+            return res.status(408).json({ success: false, message: 'Udyam verification timed out waiting for results' });
+        }
+
+        const rawResult = resultData.result || resultData.source_output || {};
+        const businessName = rawResult.enterprise_name || rawResult.legal_name || 'Verified Udyam Business';
 
         res.json({
             success: true,
@@ -128,7 +181,7 @@ router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
         console.error('Udyam Verification Error:', error.response?.data || error.message);
         res.status(500).json({
             success: false,
-            message: error.response?.data?.message || 'Error verifying Udyam via RapidAPI.'
+            message: error.response?.data?.message || error.response?.data?.error || 'Error verifying Udyam via RapidAPI.'
         });
     }
 }));
