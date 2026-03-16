@@ -23,7 +23,7 @@ const generateToken = (user) => {
 // SUPPLIER REGISTRATION & VERIFICATION
 // ============================================================
 
-// POST /supplier/verify-gst — Verify GST with Cashfree API
+// POST /supplier/verify-gst — Verify GST with RapidAPI
 router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
     const { gstin } = req.body;
     if (!gstin) {
@@ -31,46 +31,110 @@ router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
     }
 
     try {
-        const isProd = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION';
-        const url = isProd
-            ? 'https://api.cashfree.com/verification/gstin'
-            : 'https://sandbox.cashfree.com/verification/gstin';
+        const url = process.env.RAPIDAPI_URL;
+        
+        if (!url) {
+            return res.status(500).json({ success: false, message: 'RapidAPI URL not configured in server.' });
+        }
 
-        const response = await axios.post(
-            url,
-            { GSTIN: gstin },
+        // Most RapidAPI GST endpoints prepend the GSTIN at the end of the URL or as a query parameter.
+        // We assume the URL requires the GSTIN at the end. Adjust if your chosen API uses POST or query params.
+        const endpointUrl = url.endsWith('/') ? `${url}${gstin}` : `${url}/${gstin}`;
+
+        const response = await axios.get(
+            endpointUrl,
             {
                 headers: {
-                    'x-client-id': process.env.CASHFREE_CLIENT_ID,
-                    'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
+                    'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+                    'x-rapidapi-host': process.env.RAPIDAPI_HOST,
                     'Content-Type': 'application/json'
                 }
             }
         );
 
-        if (response.data && response.data.status === 'VALID') {
-            res.json({
-                success: true,
-                message: 'GST verified successfully',
-                data: response.data.legal_name
-            });
-        } else {
-            res.status(400).json({
+        // Extracting common response payload structures from various RapidAPI GST services
+        const resData = response.data;
+        const payload = resData.data || resData.result || resData;
+        
+        if (!payload || resData.error) {
+            return res.status(400).json({
                 success: false,
                 message: 'Invalid GSTIN or verification failed'
             });
         }
+
+        // Try mapping common legal name fields (lgnm, legal_name, tradeName, etc.)
+        const businessName = payload.legal_name || payload.legalName || payload.lgnm || payload.tradeName || payload.tradeNam || payload.business_name || 'Verified Business';
+
+        res.json({
+            success: true,
+            message: 'GST verified successfully',
+            data: businessName
+        });
     } catch (error) {
         console.error('GST Verification Error:', error.response?.data || error.message);
         res.status(500).json({
             success: false,
-            message: error.response?.data?.message || 'Error verifying GSTIN with provider.'
+            message: error.response?.data?.message || 'Error verifying GSTIN via RapidAPI.'
+        });
+    }
+}));
+
+// POST /supplier/verify-udyam — Verify Udyam with RapidAPI
+router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
+    const { udyam } = req.body;
+    if (!udyam) {
+        return res.status(400).json({ success: false, message: 'Udyam number is required.' });
+    }
+
+    try {
+        const url = process.env.RAPIDAPI_UDYAM_URL || process.env.RAPIDAPI_URL;
+        
+        if (!url) {
+            return res.status(500).json({ success: false, message: 'RapidAPI URL not configured in server.' });
+        }
+
+        const endpointUrl = url.endsWith('/') ? `${url}${udyam}` : `${url}/${udyam}`;
+
+        const response = await axios.get(
+            endpointUrl,
+            {
+                headers: {
+                    'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+                    'x-rapidapi-host': process.env.RAPIDAPI_HOST,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const resData = response.data;
+        const payload = resData.data || resData.result || resData;
+        
+        if (!payload || resData.error) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid Udyam number or verification failed'
+            });
+        }
+
+        const businessName = payload.enterprise_name || payload.enterpriseName || payload.legal_name || 'Verified Udyam Business';
+
+        res.json({
+            success: true,
+            message: 'Udyam verified successfully',
+            data: businessName
+        });
+    } catch (error) {
+        console.error('Udyam Verification Error:', error.response?.data || error.message);
+        res.status(500).json({
+            success: false,
+            message: error.response?.data?.message || 'Error verifying Udyam via RapidAPI.'
         });
     }
 }));
 
 // POST /supplier/register — Apply to become a supplier
-router.post('/register', authMiddleware, uploadDocument.single('udyamDocument'), asyncHandler(async (req, res) => {
+router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -85,7 +149,7 @@ router.post('/register', authMiddleware, uploadDocument.single('udyamDocument'),
         return res.status(400).json({ success: false, message: 'Admin cannot register as supplier.' });
     }
 
-    let { storeName, gstin, gstVerified, udyamRegistration, pickupAddress, bankDetails } = req.body;
+    let { storeName, gstin, gstVerified, udyamRegistration, udyamVerified, pickupAddress, bankDetails } = req.body;
 
     // Parse stringified JSON fields if sent as FormData
     if (typeof pickupAddress === 'string') {
@@ -99,17 +163,34 @@ router.post('/register', authMiddleware, uploadDocument.single('udyamDocument'),
     if (typeof gstVerified === 'string') {
         gstVerified = gstVerified === 'true';
     }
+    if (typeof udyamVerified === 'string') {
+        udyamVerified = udyamVerified === 'true';
+    }
 
     if (!storeName || !pickupAddress || !pickupAddress.address || !pickupAddress.city || !pickupAddress.state || !pickupAddress.pincode) {
         return res.status(400).json({ success: false, message: 'Store name and pickup address are required.' });
     }
 
     // Check if either GST or Udyam is provided
-    if (!gstVerified && (!udyamRegistration || !req.file)) {
-        return res.status(400).json({ success: false, message: 'Either a verified GSTIN or Udyam Registration with document is required.' });
+    if (!gstVerified && !udyamVerified) {
+        return res.status(400).json({ success: false, message: 'Either a verified GSTIN or a verified Udyam Registration is required.' });
     }
 
-    const udyamDocumentUrl = req.file ? req.file.path : '';
+    // Determine coordinates
+    if (pickupAddress && pickupAddress.city && pickupAddress.state) {
+        const geocodeResponse = await getCoordinates(pickupAddress.city, pickupAddress.state);
+        const geocodeData = geocodeResponse?.data?.data?.[0];
+
+        if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
+            pickupAddress.latitude = geocodeData.latitude;
+            pickupAddress.longitude = geocodeData.longitude;
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid city or state, could not find location coordinates."
+            });
+        }
+    }
 
     // Update user to supplier
     user.role = 'supplier';
@@ -118,7 +199,7 @@ router.post('/register', authMiddleware, uploadDocument.single('udyamDocument'),
         gstin: gstin || '',
         gstVerified: gstVerified || false,
         udyamRegistration: udyamRegistration || '',
-        udyamDocument: udyamDocumentUrl,
+        udyamVerified: udyamVerified || false,
         pickupAddress,
         bankDetails: bankDetails || {},
         isApproved: false, // requires admin approval

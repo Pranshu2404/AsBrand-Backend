@@ -44,8 +44,14 @@ const userSchema = new mongoose.Schema({
     storeName: { type: String, trim: true },
     gstin: { type: String, trim: true },
     gstVerified: { type: Boolean, default: false },
-    udyamRegistration: { type: String, trim: true },
-    udyamDocument: { type: String, trim: true }, // Store the document URL
+    udyamRegistration: {
+      type: String,
+      trim: true
+    },
+    udyamVerified: {
+      type: Boolean,
+      default: false
+    },
     pickupAddress: {
       address: { type: String, trim: true },
       city: { type: String, trim: true },
