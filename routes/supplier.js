@@ -111,8 +111,7 @@ router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
                 group_id: groupId,
                 data: {
                     udyam_registration_no: udyam,
-                    id_number: udyam,
-                    "0":"U","1":"s","2":"e","3":" ","4":"g","5":"e","6":"t","7":" ","8":"c","9":"a","10":"l","11":"l" 
+                    id_number: udyam
                 }
             }
         };
