@@ -110,8 +110,8 @@ router.post('/verify-udyam', authMiddleware, asyncHandler(async (req, res) => {
                 task_id: taskId,
                 group_id: groupId,
                 data: {
-                    udyam_registration_no: udyam,
-                    id_number: udyam
+                    id_number: udyam,
+                    consent: "Y"
                 }
             }
         };
