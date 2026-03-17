@@ -19,6 +19,36 @@ const generateToken = (user) => {
     );
 };
 
+// Simple Geocoding using Nominatim (OpenStreetMap)
+const getCoordinates = async (city, state) => {
+    try {
+        const query = `${city}, ${state}`;
+        const response = await axios.get(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
+            headers: { 'User-Agent': 'AsBrandApp/1.0' }
+        });
+        
+        if (response.data && response.data.length > 0) {
+            return {
+                data: {
+                    data: [{
+                        latitude: parseFloat(response.data[0].lat),
+                        longitude: parseFloat(response.data[0].lon)
+                    }]
+                }
+            };
+        }
+    } catch (error) {
+        console.error("Geocoding failed:", error.message);
+    }
+    
+    // Fallback to avoid breaking registration if location API fails or limit is reached
+    return {
+        data: {
+            data: [{ latitude: 28.6139, longitude: 77.2090 }] // New Delhi coordinates
+        }
+    };
+};
+
 // ============================================================
 // SUPPLIER REGISTRATION & VERIFICATION
 // ============================================================
