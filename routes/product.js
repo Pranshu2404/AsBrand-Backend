@@ -418,6 +418,8 @@ router.use('/:id', asyncHandler(async (req, res, next) => {
             let parsedProVariants = parseProVariants(proVariants);
             let parsedSkus = parseSkus(skus);
 
+            const cleanId = (id) => (!id || id === 'null' || id === '') ? undefined : id;
+
             productToUpdate.name = name || productToUpdate.name;
             productToUpdate.description = description || productToUpdate.description;
             productToUpdate.quantity = quantity || productToUpdate.quantity;
