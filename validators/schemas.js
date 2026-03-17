@@ -280,10 +280,21 @@ const mongoIdSchema = Joi.object({
         })
 });
 
+const loginWithPhoneSchema = Joi.object({
+    phone: Joi.string()
+        .pattern(/^[6-9]\d{9}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'Please provide a valid 10-digit Indian phone number',
+            'any.required': 'Phone number is required'
+        })
+});
+
 module.exports = {
     // User
     registerSchema,
     loginSchema,
+    loginWithPhoneSchema,
     sendOtpSchema,
     verifyOtpSchema,
     // Order

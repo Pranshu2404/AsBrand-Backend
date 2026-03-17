@@ -5,7 +5,7 @@ const router = express.Router();
 const User = require('../model/user');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware.js');
 const { validate } = require('../middleware/validate');
-const { registerSchema, loginSchema, sendOtpSchema, verifyOtpSchema } = require('../validators/schemas');
+const { registerSchema, loginSchema, loginWithPhoneSchema, sendOtpSchema, verifyOtpSchema } = require('../validators/schemas');
 const { sendOtpSms } = require('../services/smsService');
 
 // Generate JWT Token
@@ -187,6 +187,38 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {
       message: 'Invalid email or password.'
     });
   }
+  const token = generateToken(user);
+
+  res.json({
+    success: true,
+    message: 'Login successful.',
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        supplierProfile: user.supplierProfile || null
+      },
+      token
+    }
+  });
+}));
+
+// LOGIN WITH PHONE - Public route
+router.post('/login/phone', validate(loginWithPhoneSchema), asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+  
+  // Find user
+  const user = await User.findOne({ phone });
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'No account found with this phone number.'
+    });
+  }
+  
   // Generate OTP for phone verification upon login
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
@@ -204,7 +236,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: 'Login credentials valid. Please verify your phone number with the OTP sent.',
+    message: 'OTP sent to your phone. Please verify to login.',
     data: {
       phone: user.phone,
       requiresOtpVerification: true
@@ -212,6 +244,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {
     dev_otp: otp
   });
 }));
+
 // GET PROFILE - Protected route (also refreshes token)
 router.get('/profile', authMiddleware, asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('-password');
