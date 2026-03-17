@@ -365,8 +365,17 @@ router.post('/', asyncHandler(async (req, res) => {
 
 
 
-// Update a product
-router.put('/:id', asyncHandler(async (req, res) => {
+// Update a product (Supports both PUT and POST for Flutter Web compatibility with FormData)
+router.use('/:id', asyncHandler(async (req, res, next) => {
+    if (req.method === 'PUT' || (req.method === 'POST' && req.path.includes('/update'))) {
+        return next();
+    }
+    if (req.method === 'POST') {
+        // Allow POST to /:id to act as an update as well
+        return next();
+    }
+    next('route');
+}), asyncHandler(async (req, res) => {
     const productId = req.params.id;
     try {
         // Execute the Multer middleware to handle file fields
