@@ -441,8 +441,8 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
         async function createProduct(body, files) {
             const {
                 name, description, quantity, price, offerPrice,
-                proCategoryId, proSubCategoryId, proBrandId,
-                proVariantTypeId, proVariantId, proVariants,
+                proCategoryId, proSubCategoryId, proSubSubCategoryId, proBrandId,
+                proVariantTypeId, proVariantId, proVariants, skus,
                 gender, material, fit, pattern, sleeveLength, neckline, occasion,
                 careInstructions, tags, specifications, weight, dimensions,
                 preUploadedUrls
@@ -468,6 +468,10 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
             let parsedProVariants = proVariants;
             if (typeof proVariants === 'string') {
                 try { parsedProVariants = JSON.parse(proVariants); } catch (e) { parsedProVariants = []; }
+            }
+            let parsedSkus = skus;
+            if (typeof skus === 'string') {
+                try { parsedSkus = JSON.parse(skus); } catch (e) { parsedSkus = []; }
             }
 
             // Parse pre-uploaded URLs
@@ -503,9 +507,13 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 quantity: parseInt(quantity),
                 price: parseFloat(price),
                 offerPrice: offerPrice ? parseFloat(offerPrice) : undefined,
-                proCategoryId, proSubCategoryId, proBrandId,
+                proCategoryId,
+                proSubCategoryId,
+                proSubSubCategoryId: proSubSubCategoryId || undefined,
+                proBrandId,
                 proVariantTypeId, proVariantId,
                 proVariants: parsedProVariants || [],
+                skus: parsedSkus || [],
                 gender: gender || 'Unisex',
                 material, fit, pattern, sleeveLength, neckline, occasion,
                 careInstructions,
