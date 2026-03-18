@@ -566,7 +566,7 @@ router.put('/products/:id', authMiddleware, supplierMiddleware, asyncHandler(asy
 
     const allowedFields = [
         'name', 'description', 'quantity', 'price', 'offerPrice',
-        'proCategoryId', 'proSubCategoryId', 'proBrandId',
+        'proCategoryId', 'proSubCategoryId', 'proSubSubCategoryId', 'proBrandId',
         'gender', 'material', 'fit', 'pattern', 'sleeveLength', 'neckline', 'occasion',
         'careInstructions', 'tags', 'specifications', 'weight', 'dimensions',
         'isActive', 'featured'
@@ -577,6 +577,45 @@ router.put('/products/:id', authMiddleware, supplierMiddleware, asyncHandler(asy
             product[field] = req.body[field];
         }
     });
+
+    // Parse complex fields
+    if (req.body.proVariants !== undefined) {
+        let parsedProVariants = req.body.proVariants;
+        if (typeof req.body.proVariants === 'string') {
+            try { parsedProVariants = JSON.parse(req.body.proVariants); } catch (e) { parsedProVariants = []; }
+        }
+        product.proVariants = parsedProVariants;
+    }
+
+    if (req.body.skus !== undefined) {
+        let parsedSkus = req.body.skus;
+        if (typeof req.body.skus === 'string') {
+            try { parsedSkus = JSON.parse(req.body.skus); } catch (e) { parsedSkus = []; }
+        }
+        product.skus = parsedSkus;
+    }
+
+    // Handle preUploadedUrls if provided via JSON update
+    if (req.body.preUploadedUrls !== undefined) {
+        let parsedPreUploadedUrls = req.body.preUploadedUrls;
+        if (typeof req.body.preUploadedUrls === 'string') {
+            try { parsedPreUploadedUrls = JSON.parse(req.body.preUploadedUrls); } catch (e) { parsedPreUploadedUrls = []; }
+        }
+
+        if (Array.isArray(parsedPreUploadedUrls)) {
+            const imageList = [];
+            parsedPreUploadedUrls.forEach((item, index) => {
+                if (typeof item === 'string') {
+                    imageList.push({ image: index + 1, url: item });
+                } else if (item && item.url) {
+                    imageList.push({ image: item.image || index + 1, url: item.url });
+                }
+            });
+            if (imageList.length > 0) {
+                product.images = imageList;
+            }
+        }
+    }
 
     await product.save();
     res.json({ success: true, message: 'Product updated.', data: product });
