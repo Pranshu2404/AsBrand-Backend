@@ -63,7 +63,9 @@ const userSchema = new mongoose.Schema({
       address: { type: String, trim: true },
       city: { type: String, trim: true },
       state: { type: String, trim: true },
-      pincode: { type: String, trim: true }
+      pincode: { type: String, trim: true },
+      latitude: { type: Number },
+      longitude: { type: Number }
     },
     bankDetails: {
       accountName: { type: String, trim: true },
