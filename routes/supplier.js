@@ -53,6 +53,116 @@ const getCoordinates = async (city, state) => {
 // SUPPLIER REGISTRATION & VERIFICATION
 // ============================================================
 
+// GET /supplier/nearest — Fetch nearest suppliers based on location
+router.get('/nearest', asyncHandler(async (req, res) => {
+    try {
+        const { lat, lng, keyword } = req.query;
+        if (!lat || !lng) {
+            return res.status(400).json({ success: false, message: 'Latitude and longitude are required.' });
+        }
+
+        const userLat = parseFloat(lat);
+        const userLng = parseFloat(lng);
+
+        // Fetch all approved suppliers
+        let suppliers = await User.find({ role: 'supplier', 'supplierProfile.isApproved': true })
+            .select('-password -otp -otpExpiry');
+
+        // If a keyword is provided, we only want suppliers who have products matching this keyword
+        if (keyword) {
+            const sanitizedKeyword = keyword.replace(/[-\s]/g, '');
+            const flexibleRegexString = sanitizedKeyword.split('').join('[-\\s]*');
+            const keywordRegex = { $regex: flexibleRegexString, $options: 'i' };
+
+            const matchingProducts = await Product.find({
+                isApproved: { $ne: false },
+                $or: [
+                    { name: keywordRegex },
+                    { description: keywordRegex },
+                    { tags: keywordRegex },
+                    { material: keywordRegex },
+                    { fit: keywordRegex },
+                    { pattern: keywordRegex },
+                    { occasion: keywordRegex },
+                ]
+            }).select('supplierId');
+            
+            const supplierIdsWithProduct = matchingProducts.map(p => p.supplierId?.toString()).filter(Boolean);
+            const uniqueSupplierIds = [...new Set(supplierIdsWithProduct)];
+
+            // Filter suppliers to only those who have matching products
+            suppliers = suppliers.filter(s => uniqueSupplierIds.includes(s._id.toString()));
+        }
+
+        // Calculate distance for each supplier
+        const suppliersWithDistance = [];
+        
+        for (const supplier of suppliers) {
+            const pickupLat = supplier.supplierProfile?.pickupAddress?.latitude;
+            const pickupLng = supplier.supplierProfile?.pickupAddress?.longitude;
+
+            let distance = null;
+            if (pickupLat != null && pickupLng != null) {
+                // Haversine formula formula
+                const R = 6371; // Radius of the Earth in km
+                const dLat = (pickupLat - userLat) * Math.PI / 180;
+                const dLon = (pickupLng - userLng) * Math.PI / 180;
+                const a = 
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(userLat * Math.PI / 180) * Math.cos(pickupLat * Math.PI / 180) * 
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                distance = R * c; 
+            }
+
+            // Also attach a few products from this supplier for display
+            // Depending on if a keyword was provided, maybe sort those first, but for simplicity just grab latest 5
+            let productQuery = { supplierId: supplier._id, isApproved: { $ne: false } };
+            if (keyword) {
+                const sanitizedKeyword = keyword.replace(/[-\s]/g, '');
+                const flexibleRegexString = sanitizedKeyword.split('').join('[-\\s]*');
+                const keywordRegex = { $regex: flexibleRegexString, $options: 'i' };
+                productQuery = {
+                    ...productQuery,
+                    $or: [
+                        { name: keywordRegex },
+                        { description: keywordRegex },
+                        { tags: keywordRegex },
+                    ]
+                };
+            }
+
+            const products = await Product.find(productQuery).sort({ createdAt: -1 }).limit(10);
+
+            // only show suppliers that have products to show at least
+            if (products.length > 0) {
+                suppliersWithDistance.push({
+                    ...supplier.toObject(),
+                    distanceKm: distance,
+                    sampleProducts: products
+                });
+            } else if (!keyword) {
+                 suppliersWithDistance.push({
+                    ...supplier.toObject(),
+                    distanceKm: distance,
+                    sampleProducts: []
+                });
+            }
+        }
+
+        // Sort by distance (putting null distances at the end)
+        suppliersWithDistance.sort((a, b) => {
+            if (a.distanceKm == null) return 1;
+            if (b.distanceKm == null) return -1;
+            return a.distanceKm - b.distanceKm;
+        });
+
+        res.json({ success: true, data: suppliersWithDistance });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}));
+
 // POST /supplier/verify-gst — Verify GST with RapidAPI
 router.post('/verify-gst', authMiddleware, asyncHandler(async (req, res) => {
     const { gstin } = req.body;
@@ -288,17 +398,19 @@ router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
 
     // Determine coordinates
     if (pickupAddress && pickupAddress.city && pickupAddress.state) {
-        const geocodeResponse = await getCoordinates(pickupAddress.city, pickupAddress.state);
-        const geocodeData = geocodeResponse?.data?.data?.[0];
+        if (!(pickupAddress.latitude && pickupAddress.longitude)) {
+            const geocodeResponse = await getCoordinates(pickupAddress.city, pickupAddress.state);
+            const geocodeData = geocodeResponse?.data?.data?.[0];
 
-        if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
-            pickupAddress.latitude = geocodeData.latitude;
-            pickupAddress.longitude = geocodeData.longitude;
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid city or state, could not find location coordinates."
-            });
+            if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
+                pickupAddress.latitude = geocodeData.latitude;
+                pickupAddress.longitude = geocodeData.longitude;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid city or state, could not find location coordinates."
+                });
+            }
         }
     }
 

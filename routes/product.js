@@ -80,8 +80,13 @@ function parseSkus(raw) {
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount } = req.query;
+        const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount, supplierId } = req.query;
         let query = { isApproved: { $ne: false } }; // Only show approved products to customers
+
+        // Filter by Supplier Id
+        if (supplierId) {
+            query.supplierId = supplierId;
+        }
 
         // Filter by Price
         if (minPrice || maxPrice) {
