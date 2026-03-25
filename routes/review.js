@@ -4,8 +4,40 @@ const router = express.Router();
 const Review = require('../model/review');
 const Order = require('../model/order');
 const User = require('../model/user');
+const Product = require('../model/product');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware');
 const { uploadReview } = require('../uploadFile');
+
+// Helper function to update product average rating
+async function updateProductRating(productId) {
+    try {
+        const stats = await Review.aggregate([
+            { $match: { productID: productId, isApproved: true } },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: '$rating' },
+                    totalReviews: { $sum: 1 }
+                }
+            }
+        ]);
+
+        let averageRating = 0;
+        let totalReviews = 0;
+
+        if (stats.length > 0) {
+            averageRating = Math.round(stats[0].averageRating * 10) / 10;
+            totalReviews = stats[0].totalReviews;
+        }
+
+        await Product.findByIdAndUpdate(productId, {
+            averageRating,
+            totalReviews
+        });
+    } catch (error) {
+        console.error('Error updating product rating:', error);
+    }
+}
 
 // ==========================================
 // POST: Submit a review
@@ -88,6 +120,9 @@ router.post('/', authMiddleware, uploadReview.array('images', 5), asyncHandler(a
         });
 
         await review.save();
+
+        // Update the cached rating on the product
+        await updateProductRating(productID);
 
         res.status(201).json({
             success: true,
@@ -270,6 +305,9 @@ router.put('/:id', authMiddleware, uploadReview.array('images', 5), asyncHandler
 
         await review.save();
 
+        // Update the cached rating on the product
+        await updateProductRating(review.productID);
+
         res.json({
             success: true,
             message: 'Review updated',
@@ -305,7 +343,12 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized to delete this review' });
         }
 
-        await Review.findByIdAndDelete(req.params.id);
+        const deletedReview = await Review.findByIdAndDelete(req.params.id);
+
+        // Update the cached rating on the product
+        if (deletedReview) {
+            await updateProductRating(deletedReview.productID);
+        }
 
         res.json({
             success: true,
