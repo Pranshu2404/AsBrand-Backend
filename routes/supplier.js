@@ -574,6 +574,11 @@ router.get('/products', authMiddleware, supplierMiddleware, asyncHandler(async (
         base.quantity = sp.quantity;
         base.stockStatus = sp.stockStatus;
         if (sp.skus && sp.skus.length > 0) base.skus = sp.skus;
+        
+        // Overwrite timestamps so new mapped products appear at the top
+        base.createdAt = sp.createdAt;
+        base.updatedAt = sp.updatedAt;
+        
         return base;
     }).filter(p => p !== null);
 
