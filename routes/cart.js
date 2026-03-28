@@ -18,7 +18,11 @@ router.get('/', authMiddleware, asyncHandler(async (req, res) => {
 
 // Add to Cart
 router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
-    const { productId, quantity = 1, emiMonths = 3, variant } = req.body;
+    const { productId, supplierId, quantity = 1, emiMonths = 3, variant } = req.body;
+
+    if (!supplierId) {
+        return res.status(400).json({ success: false, message: 'Supplier ID is required' });
+    }
 
     let cart = await Cart.findOne({ userId: req.user.id });
 
@@ -26,14 +30,17 @@ router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
         cart = new Cart({ userId: req.user.id, items: [] });
     }
 
-    const existingItemIndex = cart.items.findIndex(item => item.product.toString() === productId && (item.variant || '') === (variant || ''));
+    const existingItemIndex = cart.items.findIndex(item => 
+        item.product.toString() === productId && 
+        item.supplierId.toString() === supplierId && 
+        (item.variant || '') === (variant || '')
+    );
 
     if (existingItemIndex > -1) {
         cart.items[existingItemIndex].quantity += quantity;
-        // Update emiMonths if provided? Usually we keep existing or update. Let's update.
         if (req.body.emiMonths) cart.items[existingItemIndex].emiMonths = emiMonths;
     } else {
-        cart.items.push({ product: productId, quantity, variant, emiMonths });
+        cart.items.push({ product: productId, supplierId, quantity, variant, emiMonths });
     }
 
     await cart.save();
@@ -44,7 +51,7 @@ router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
 
 // Update Cart Item (Quantity / EMI)
 router.put('/update', authMiddleware, asyncHandler(async (req, res) => {
-    const { productId, quantity, emiMonths, variant } = req.body;
+    const { productId, supplierId, quantity, emiMonths, variant } = req.body;
 
     let cart = await Cart.findOne({ userId: req.user.id });
 
@@ -52,7 +59,11 @@ router.put('/update', authMiddleware, asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Cart not found' });
     }
 
-    const itemIndex = cart.items.findIndex(item => item.product.toString() === productId && (item.variant || '') === (variant || ''));
+    const itemIndex = cart.items.findIndex(item => 
+        item.product.toString() === productId && 
+        item.supplierId.toString() === supplierId && 
+        (item.variant || '') === (variant || '')
+    );
 
     if (itemIndex > -1) {
         if (quantity !== undefined) cart.items[itemIndex].quantity = quantity;
@@ -69,7 +80,7 @@ router.put('/update', authMiddleware, asyncHandler(async (req, res) => {
 // Remove from Cart
 router.delete('/remove/:productId', authMiddleware, asyncHandler(async (req, res) => {
     const { productId } = req.params;
-    const { variant } = req.query;
+    const { variant, supplierId } = req.query;
 
     let cart = await Cart.findOne({ userId: req.user.id });
 
@@ -77,7 +88,11 @@ router.delete('/remove/:productId', authMiddleware, asyncHandler(async (req, res
         return res.status(404).json({ success: false, message: 'Cart not found' });
     }
 
-    cart.items = cart.items.filter(item => !(item.product.toString() === productId && (item.variant || '') === (variant || '')));
+    cart.items = cart.items.filter(item => 
+        !(item.product.toString() === productId && 
+          item.supplierId.toString() === supplierId && 
+          (item.variant || '') === (variant || ''))
+    );
 
     await cart.save();
     await cart.populate('items.product');
@@ -87,7 +102,7 @@ router.delete('/remove/:productId', authMiddleware, asyncHandler(async (req, res
 
 // Sync Cart (Merge local cart into backend cart)
 router.post('/sync', authMiddleware, asyncHandler(async (req, res) => {
-    const { items } = req.body; // Expects array of { productId, quantity, emiMonths }
+    const { items } = req.body; // Expects array of { productId, supplierId, quantity, emiMonths, variant }
 
     if (!items || !Array.isArray(items)) {
         return res.status(400).json({ success: false, message: 'Invalid items data' });
@@ -99,12 +114,17 @@ router.post('/sync', authMiddleware, asyncHandler(async (req, res) => {
     }
 
     for (const localItem of items) {
-        const existingIndex = cart.items.findIndex(i => i.product.toString() === localItem.productId && (i.variant || '') === (localItem.variant || ''));
+        const existingIndex = cart.items.findIndex(i => 
+            i.product.toString() === localItem.productId && 
+            i.supplierId.toString() === localItem.supplierId && 
+            (i.variant || '') === (localItem.variant || '')
+        );
         if (existingIndex > -1) {
             // Same as before
         } else {
             cart.items.push({
                 product: localItem.productId,
+                supplierId: localItem.supplierId,
                 quantity: localItem.quantity,
                 variant: localItem.variant,
                 emiMonths: localItem.emiMonths
