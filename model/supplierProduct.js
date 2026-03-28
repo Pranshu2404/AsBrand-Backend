@@ -41,6 +41,10 @@ const supplierProductSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    isApproved: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 

@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../model/product');
+const SupplierProduct = require('../model/supplierProduct');
+const User = require('../model/user');
 const multer = require('multer');
 const { uploadProduct } = require('../uploadFile');
 const asyncHandler = require('express-async-handler');
@@ -157,7 +159,61 @@ router.get('/', asyncHandler(async (req, res) => {
             productsQuery = productsQuery.sort({ createdAt: -1 });
         }
 
-        const products = await productsQuery;
+        let products = await productsQuery.lean();
+
+        // Fetch all active mapped sellers for these products to compute lowest price
+        const productIds = products.map(p => p._id);
+        const activeMappedSellers = await SupplierProduct.find({
+            productId: { $in: productIds },
+            isActive: true,
+            isApproved: true,
+            stockStatus: { $ne: 'out_of_stock' },
+            quantity: { $gt: 0 }
+        }).lean();
+
+        const sellerMap = {};
+        activeMappedSellers.forEach(sp => {
+            if (!sellerMap[sp.productId]) sellerMap[sp.productId] = [];
+            sellerMap[sp.productId].push(sp);
+        });
+
+        // Override base product price/stock with the cheapest available seller
+        products.forEach(p => {
+            let bestSupplierId = p.supplierId;
+            let bestPrice = p.price;
+            let bestOfferPrice = p.offerPrice;
+            let bestQuantity = p.quantity;
+            let bestStockStatus = p.stockStatus;
+            
+            let baseOutOfStock = p.quantity <= 0 || p.stockStatus === 'out_of_stock';
+            let lowestEffectivePrice = bestOfferPrice || bestPrice;
+            if (baseOutOfStock) lowestEffectivePrice = Infinity;
+
+            if (sellerMap[p._id]) {
+                sellerMap[p._id].forEach(sp => {
+                    let spEffective = sp.offerPrice || sp.price;
+                    if (spEffective < lowestEffectivePrice) {
+                        lowestEffectivePrice = spEffective;
+                        bestSupplierId = sp.supplierId;
+                        bestPrice = sp.price;
+                        bestOfferPrice = sp.offerPrice;
+                        bestQuantity = sp.quantity;
+                        bestStockStatus = sp.stockStatus;
+                    }
+                });
+            }
+
+            p.supplierId = bestSupplierId;
+            p.price = bestPrice;
+            p.offerPrice = bestOfferPrice;
+            p.quantity = bestQuantity;
+            p.stockStatus = bestStockStatus;
+            
+            if (sellerMap[p._id] && sellerMap[p._id].length > 0) {
+                p.hasOtherSellers = true;
+            }
+        });
+
         res.json({ success: true, message: "Products retrieved successfully.", data: products });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -174,10 +230,76 @@ router.get('/:id', asyncHandler(async (req, res) => {
             .populate('proBrandId', 'id name')
             .populate('proVariantTypeId', 'id name')
             .populate('proVariantId', 'id name')
-            .populate('proVariants.variantTypeId', 'id name type');
+            .populate('proVariants.variantTypeId', 'id name type')
+            .populate('supplierId', 'id name shopName')
+            .lean();
+            
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found." });
         }
+
+        // Fetch other sellers
+        const mappedSellers = await SupplierProduct.find({
+            productId: productID,
+            isActive: true,
+            isApproved: true
+        }).populate('supplierId', 'id name shopName').lean();
+
+        let otherSellers = [];
+        
+        // Add the base creator as a seller option (if they are a supplier)
+        if (product.supplierId) {
+            otherSellers.push({
+                supplierId: product.supplierId._id || product.supplierId.id,
+                shopName: product.supplierId.shopName || product.supplierId.name,
+                price: product.price,
+                offerPrice: product.offerPrice,
+                quantity: product.quantity,
+                stockStatus: product.stockStatus,
+                isBase: true
+            });
+        }
+        
+        // Add mapped sellers
+        mappedSellers.forEach(sp => {
+            if (sp.supplierId) {
+                otherSellers.push({
+                    supplierId: sp.supplierId._id || sp.supplierId.id,
+                    shopName: sp.supplierId.shopName || sp.supplierId.name,
+                    price: sp.price,
+                    offerPrice: sp.offerPrice,
+                    quantity: sp.quantity,
+                    stockStatus: sp.stockStatus,
+                    supplierProductId: sp._id,
+                    isBase: false
+                });
+            }
+        });
+
+        // Calculate the cheapest seller to show as default
+        if (otherSellers.length > 0) {
+            let cheapest = otherSellers[0];
+            let lowestPrice = cheapest.offerPrice || cheapest.price;
+            if (cheapest.quantity <= 0) lowestPrice = Infinity;
+            
+            otherSellers.forEach(s => {
+                let thisPrice = s.offerPrice || s.price;
+                if (s.quantity > 0 && thisPrice < lowestPrice) {
+                    cheapest = s;
+                    lowestPrice = thisPrice;
+                }
+            });
+            
+            // Override base product fields with the cheapest seller's data
+            product.supplierId = cheapest.supplierId;
+            product.price = cheapest.price;
+            product.offerPrice = cheapest.offerPrice;
+            product.quantity = cheapest.quantity;
+            product.stockStatus = cheapest.stockStatus;
+        }
+
+        product.otherSellers = otherSellers;
+
         res.json({ success: true, message: "Product retrieved successfully.", data: product });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

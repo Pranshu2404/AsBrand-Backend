@@ -89,6 +89,7 @@ const createOrderSchema = Joi.object({
     items: Joi.array()
         .items(Joi.object({
             productID: Joi.string().required(),
+            supplierId: Joi.string().required(),
             productName: Joi.string().required(),
             quantity: Joi.number().integer().min(1).required(),
             price: Joi.number().positive().required(),

@@ -510,11 +510,8 @@ router.get('/dashboard', authMiddleware, supplierMiddleware, asyncHandler(async 
     const activeProducts = await Product.countDocuments({ supplierId, isActive: true });
 
     // Orders containing this supplier's products
-    const supplierProductIds = await Product.find({ supplierId }).select('_id');
-    const productIds = supplierProductIds.map(p => p._id);
-
     const orders = await Order.find({
-        'items.productID': { $in: productIds }
+        'items.supplierId': supplierId
     });
 
     let totalRevenue = 0;
@@ -522,7 +519,7 @@ router.get('/dashboard', authMiddleware, supplierMiddleware, asyncHandler(async 
 
     orders.forEach(order => {
         order.items.forEach(item => {
-            if (productIds.some(pid => pid.equals(item.productID))) {
+            if (item.supplierId && item.supplierId.toString() === supplierId) {
                 totalRevenue += (item.price || 0) * (item.quantity || 1);
                 totalOrderItems++;
             }
