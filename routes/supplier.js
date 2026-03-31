@@ -658,6 +658,20 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
                 if (typeof skus === 'string') {
                     try { parsedSkus2 = JSON.parse(skus); } catch (e) { parsedSkus2 = []; }
                 }
+
+                // Check if already linked
+                const existingLink = await SupplierProduct.findOne({
+                    supplierId: req.user.id,
+                    productId: selected_product_id
+                });
+                
+                if (existingLink) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: 'You have already linked this product. Please navigate to your inventory to update its price or stock.' 
+                    });
+                }
+                
                 
                 const supplierProduct = new SupplierProduct({
                     supplierId: req.user.id,
