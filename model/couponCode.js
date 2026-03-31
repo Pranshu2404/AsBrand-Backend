@@ -39,7 +39,23 @@ const couponSchema = new mongoose.Schema({
   applicableProduct: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product'
-  }
+  },
+  userID: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  isFirstOrderOnly: {
+    type: Boolean,
+    default: false
+  },
+  isSingleUse: {
+    type: Boolean,
+    default: false
+  },
+  usedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, { timestamps: true });
 
 const Coupon = mongoose.model('Coupon', couponSchema);

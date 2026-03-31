@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'supplier', 'admin'],
     default: 'user'
   },
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   isVerified: {
     type: Boolean,
     default: false

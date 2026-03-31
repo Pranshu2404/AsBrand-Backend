@@ -7,6 +7,8 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth.middlewa
 const { validate } = require('../middleware/validate');
 const { registerSchema, loginSchema, loginWithPhoneSchema, sendOtpSchema, verifyOtpSchema } = require('../validators/schemas');
 const { sendOtpSms } = require('../services/smsService');
+const Setting = require('../model/setting');
+const Coupon = require('../model/couponCode');
 
 // Generate JWT Token
 const generateToken = (user) => {
@@ -125,7 +127,7 @@ router.post('/verify-otp', validate(verifyOtpSchema), asyncHandler(async (req, r
 
 // REGISTER - Public route (with OTP verification)
 router.post('/register', validate(registerSchema), asyncHandler(async (req, res) => {
-  const { name, email, phone, password } = req.body;
+  const { name, email, phone, password, referrerCode } = req.body;
 
   // Check if user exists
   const existingUser = await User.findOne({
@@ -139,8 +141,27 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req, res)
     });
   }
 
-  // Create user (password will be auto-hashed by pre-save hook)
-  const user = new User({ name, email, phone, password });
+  // Handle Referrer
+  let referredBy = null;
+  if (referrerCode) {
+    const referrer = await User.findOne({ referralCode: referrerCode });
+    if (referrer) {
+      referredBy = referrer._id;
+    }
+  }
+
+  // Generate unique referral code for this new user
+  const newReferralCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  // Create user
+  const user = new User({ 
+    name, 
+    email, 
+    phone, 
+    password, 
+    referralCode: newReferralCode, 
+    referredBy 
+  });
 
   // Generate OTP for phone verification
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -148,6 +169,28 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req, res)
   user.otp = otp;
   user.otpExpiry = otpExpiry;
   await user.save();
+
+  // Generate Welcome Coupon if setting is configured
+  try {
+    const setting = await Setting.findOne();
+    if (setting && setting.firstOrderRewardPercent > 0) {
+       const welcomeCode = 'WELCOME-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+       const welcomeCoupon = new Coupon({
+         couponCode: welcomeCode,
+         discountType: 'percentage',
+         discountAmount: setting.firstOrderRewardPercent,
+         minimumPurchaseAmount: 0,
+         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+         status: 'active',
+         userID: user._id,
+         isFirstOrderOnly: true,
+         isSingleUse: true
+       });
+       await welcomeCoupon.save();
+    }
+  } catch (err) {
+    console.error('Error generating welcome coupon:', err);
+  }
 
   // Send OTP via 2Factor (never fail the route even if SMS fails)
   let smsSent = false;

@@ -3,6 +3,26 @@ const asyncHandler = require('express-async-handler');
 const router = express.Router();
 const Coupon = require('../model/couponCode');
 const Product = require('../model/product');
+const Order = require('../model/order');
+const { authMiddleware } = require('../middleware/auth.middleware');
+
+// Get my coupons
+router.get('/my-coupons', authMiddleware, asyncHandler(async (req, res) => {
+    try {
+        const coupons = await Coupon.find({
+            $or: [
+                { userID: null },
+                { userID: req.user.id }
+            ]
+        }).populate('applicableCategory', 'id name')
+          .populate('applicableSubCategory', 'id name')
+          .populate('applicableProduct', 'id name');
+        
+        res.json({ success: true, message: "Coupons retrieved successfully.", data: coupons });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}));
 
 // Get all coupons
 router.get('/', asyncHandler(async (req, res) => {
@@ -105,7 +125,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 }));
 
 
-router.post('/check-coupon', asyncHandler(async (req, res) => {
+router.post('/check-coupon', authMiddleware, asyncHandler(async (req, res) => {
     console.log(req.body);
     const { couponCode, productIds, purchaseAmount } = req.body;
 
@@ -128,6 +148,24 @@ router.post('/check-coupon', asyncHandler(async (req, res) => {
         // Check if the coupon is active
         if (coupon.status !== 'active') {
             return res.json({ success: false, message: "Coupon is inactive." });
+        }
+
+        // Check if the coupon is assigned to a specific user
+        if (coupon.userID && coupon.userID.toString() !== req.user.id) {
+            return res.json({ success: false, message: "This coupon is not valid for your account." });
+        }
+
+        // Check single use constraint
+        if (coupon.isSingleUse && coupon.usedBy.includes(req.user.id)) {
+            return res.json({ success: false, message: "You have already used this coupon." });
+        }
+
+        // Check first order constraint
+        if (coupon.isFirstOrderOnly) {
+            const previousOrders = await Order.countDocuments({ userID: req.user.id });
+            if (previousOrders > 0) {
+                return res.json({ success: false, message: "This coupon is only valid for your first order." });
+            }
         }
 
         // Check if the purchase amount is greater than the minimum purchase amount specified in the coupon

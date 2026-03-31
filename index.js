@@ -61,6 +61,7 @@ app.use('/merchant', require('./routes/merchant.js'))
 app.use('/shipping', require('./routes/shipping.js'))
 app.use('/reviews', require('./routes/review.js'))
 app.use('/supplier', require('./routes/supplier.js'))
+app.use('/setting', require('./routes/setting.js'))
 
 // Initialize cron jobs
 

@@ -33,7 +33,8 @@ const registerSchema = Joi.object({
         .messages({
             'string.min': 'Password must be at least 6 characters',
             'any.required': 'Password is required'
-        })
+        }),
+    referrerCode: Joi.string().allow('', null)
 });
 
 const loginSchema = Joi.object({
