@@ -80,10 +80,40 @@ const storageDocument = new CloudinaryStorage({
 
 const uploadDocument = multer({ storage: storageDocument, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Driver Photo Storage
+const storageDriverPhoto = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'asbrand/drivers',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 400, height: 400, crop: 'fill', gravity: 'face', quality: 'auto', fetch_format: 'auto' }
+    ],
+  },
+});
+
+const uploadDriverPhoto = multer({ storage: storageDriverPhoto, limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Proof of Delivery Storage
+const storageProofOfDelivery = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'asbrand/proof-of-delivery',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 1200, height: 1200, crop: 'limit', quality: 'auto', fetch_format: 'auto' }
+    ],
+  },
+});
+
+const uploadProofOfDelivery = multer({ storage: storageProofOfDelivery, limits: { fileSize: 10 * 1024 * 1024 } });
+
 module.exports = {
   uploadCategory,
   uploadProduct,
   uploadPosters,
   uploadReview,
   uploadDocument,
+  uploadDriverPhoto,
+  uploadProofOfDelivery,
 };

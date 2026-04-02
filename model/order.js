@@ -100,7 +100,7 @@ const orderSchema = new mongoose.Schema({
   },
   deliveryStatus: {
     type: String,
-    enum: ['PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    enum: ['PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'],
     default: 'PENDING'
   },
   deliveryPartner: {
@@ -118,6 +118,19 @@ const orderSchema = new mongoose.Schema({
   },
   estimatedDeliveryDate: {
     type: Date
+  },
+  assignedDriver: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Driver',
+    default: null
+  },
+  proofOfDelivery: {
+    type: String, // Cloudinary URL
+    default: null
+  },
+  deliveryNotes: {
+    type: String,
+    default: null
   },
 }, { timestamps: true });
 

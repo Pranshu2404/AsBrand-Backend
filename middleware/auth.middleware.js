@@ -47,4 +47,14 @@ const supplierMiddleware = (req, res, next) => {
   }
   next();
 };
-module.exports = { authMiddleware, adminMiddleware, supplierMiddleware };
+// Driver-only middleware
+const driverMiddleware = (req, res, next) => {
+  if (req.user.role !== 'driver' && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Driver only.'
+    });
+  }
+  next();
+};
+module.exports = { authMiddleware, adminMiddleware, supplierMiddleware, driverMiddleware };

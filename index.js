@@ -62,6 +62,7 @@ app.use('/shipping', require('./routes/shipping.js'))
 app.use('/reviews', require('./routes/review.js'))
 app.use('/supplier', require('./routes/supplier.js'))
 app.use('/setting', require('./routes/setting.js'))
+app.use('/driver', require('./routes/driver.js'))
 
 // Initialize cron jobs
 
@@ -77,11 +78,48 @@ app.use((error, req, res, next) => {
   res.status(500).json({ success: false, message: error.message, data: null });
 });
 
+// --- Socket.io Setup ---
+const http = require('http');
+const { Server } = require('socket.io');
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 
-app.listen(process.env.PORT, () => {
+io.on('connection', (socket) => {
+  console.log(`🔌 Socket connected: ${socket.id}`);
+
+  // Driver joins a room for each active order
+  socket.on('join_order', (orderId) => {
+    socket.join(`order_${orderId}`);
+    console.log(`📦 Socket ${socket.id} joined room order_${orderId}`);
+  });
+
+  // Driver emits location update
+  socket.on('driver_location_update', (data) => {
+    // data: { driverId, orderId, lat, lng, timestamp }
+    const { orderId } = data;
+    if (orderId) {
+      io.to(`order_${orderId}`).emit('location_update', data);
+    }
+  });
+
+  socket.on('leave_order', (orderId) => {
+    socket.leave(`order_${orderId}`);
+    console.log(`🚪 Socket ${socket.id} left room order_${orderId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Socket disconnected: ${socket.id}`);
+  });
+});
+
+server.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
 
   // Start cron jobs after server is running
 
 });
-

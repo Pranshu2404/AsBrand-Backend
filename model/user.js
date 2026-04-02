@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'supplier', 'admin'],
+    enum: ['user', 'supplier', 'admin', 'driver'],
     default: 'user'
   },
   referralCode: {
