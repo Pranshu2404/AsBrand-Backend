@@ -35,7 +35,19 @@ const driverSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isOnline: {
+    type: Boolean,
+    default: false
+  },
   isProfileComplete: {
+    type: Boolean,
+    default: false
+  },
+  loadCapacity: {
+    type: String,
+    default: 'Upto 30kg'
+  },
+  dlVerified: {
     type: Boolean,
     default: false
   },
