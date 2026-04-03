@@ -63,6 +63,7 @@ app.use('/reviews', require('./routes/review.js'))
 app.use('/supplier', require('./routes/supplier.js'))
 app.use('/setting', require('./routes/setting.js'))
 app.use('/driver', require('./routes/driver.js'))
+app.use('/subscription', require('./routes/subscription.js'))
 
 // Initialize cron jobs
 
@@ -112,10 +113,29 @@ io.on('connection', (socket) => {
     console.log(`🚪 Socket ${socket.id} left room order_${orderId}`);
   });
 
+  socket.on('accept_order', (data) => {
+    const { orderId, driverId } = data;
+    if (orderId && driverId) {
+      const assignmentEngine = require('./services/driverAssignment');
+      assignmentEngine.handleAccept(orderId, driverId);
+    }
+  });
+
+  socket.on('reject_order', (data) => {
+    const { orderId, driverId } = data;
+    if (orderId && driverId) {
+      const assignmentEngine = require('./services/driverAssignment');
+      assignmentEngine.handleReject(orderId, driverId);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`❌ Socket disconnected: ${socket.id}`);
   });
 });
+
+const assignmentEngine = require('./services/driverAssignment');
+assignmentEngine.setIO(io);
 
 server.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
