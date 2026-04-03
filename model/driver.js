@@ -55,6 +55,20 @@ const driverSchema = new mongoose.Schema({
     lat: { type: Number, default: 0 },
     lng: { type: Number, default: 0 },
     updatedAt: { type: Date, default: Date.now }
+  },
+  walletBalance: {
+    type: Number,
+    default: 0
+  },
+  totalEarnings: {
+    type: Number,
+    default: 0
+  },
+  bankDetails: {
+    accountName: { type: String },
+    accountNumber: { type: String },
+    ifscCode: { type: String },
+    bankName: { type: String }
   }
 }, { timestamps: true });
 
