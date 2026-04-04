@@ -12,7 +12,7 @@ router.get('/', authMiddleware, asyncHandler(async (req, res) => {
 
 // Add new address
 router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
-    const { phone, street, city, state, pincode, isDefault } = req.body;
+    const { phone, street, city, state, pincode, latitude, longitude, isDefault } = req.body;
 
     // If this is the first address or set as default, unset other defaults
     if (isDefault) {
@@ -33,6 +33,8 @@ router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
         city,
         state,
         pincode,
+        latitude,
+        longitude,
         isDefault: req.body.isDefault || isDefault
     });
 
@@ -45,7 +47,7 @@ router.post('/add', authMiddleware, asyncHandler(async (req, res) => {
 
 // Update address
 router.put('/update/:id', authMiddleware, asyncHandler(async (req, res) => {
-    const { phone, street, city, state, pincode, isDefault } = req.body;
+    const { phone, street, city, state, pincode, latitude, longitude, isDefault } = req.body;
     const addressId = req.params.id;
 
     const address = await Address.findOne({ _id: addressId, userId: req.user.id });
@@ -63,6 +65,8 @@ router.put('/update/:id', authMiddleware, asyncHandler(async (req, res) => {
     address.city = city || address.city;
     address.state = state || address.state;
     address.pincode = pincode || address.pincode;
+    if (latitude !== undefined) address.latitude = latitude;
+    if (longitude !== undefined) address.longitude = longitude;
     if (isDefault !== undefined) address.isDefault = isDefault;
 
     await address.save();
@@ -109,6 +113,8 @@ router.post('/sync', authMiddleware, asyncHandler(async (req, res) => {
                     city: localAddr.city,
                     state: localAddr.state,
                     pincode: localAddr.pincode,
+                    latitude: localAddr.latitude,
+                    longitude: localAddr.longitude,
                     isDefault: localAddr.isDefault
                 });
             }

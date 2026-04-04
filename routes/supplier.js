@@ -148,13 +148,13 @@ router.get('/nearest', asyncHandler(async (req, res) => {
             const products = await Product.find(productQuery).sort({ createdAt: -1 }).limit(10);
 
             // only show suppliers that have products to show at least
-            if (products.length > 0) {
+            if (products.length > 0 && distance != null && distance <= 10) {
                 suppliersWithDistance.push({
                     ...supplier.toObject(),
                     distanceKm: distance,
                     sampleProducts: products
                 });
-            } else if (!keyword) {
+            } else if (!keyword && distance != null && distance <= 10) {
                  suppliersWithDistance.push({
                     ...supplier.toObject(),
                     distanceKm: distance,
