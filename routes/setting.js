@@ -2,7 +2,6 @@ const express = require('express');
 const asyncHandler = require('express-async-handler');
 const router = express.Router();
 const Setting = require('../model/setting');
-const { adminMiddleware } = require('../middleware/auth.middleware');
 
 // GET settings (publicly accessible or protected, but let's allow it for general use or just admin)
 router.get('/', asyncHandler(async (req, res) => {
@@ -18,8 +17,8 @@ router.get('/', asyncHandler(async (req, res) => {
     }
 }));
 
-// UPDATE settings (Admin only)
-router.put('/', adminMiddleware, asyncHandler(async (req, res) => {
+// UPDATE settings
+router.put('/', asyncHandler(async (req, res) => {
     try {
         const {
             referralRewardPercent, firstOrderRewardPercent,
