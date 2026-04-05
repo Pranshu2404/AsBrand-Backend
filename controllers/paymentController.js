@@ -2,6 +2,7 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Order = require('../model/order');
 const Setting = require('../model/setting');
+const assignmentEngine = require('../services/driverAssignment');
 
 // Lazy Razorpay initialization (prevents crash if keys missing)
 let razorpay = null;
@@ -137,6 +138,13 @@ const verifyPayment = async (req, res) => {
             order.deliveryStatus = 'PENDING';
             await order.save();
 
+            // Auto-trigger driver assignment for local delivery
+            try {
+                assignmentEngine.startAssignment(order._id);
+            } catch (e) {
+                console.error('Driver assignment trigger failed:', e.message);
+            }
+
             res.json({
                 success: true,
                 message: 'Payment verified successfully',
@@ -189,9 +197,16 @@ const placeCodOrder = async (req, res) => {
             orderStatus: 'processing',
             paymentStatus: 'pending', // Payment on delivery
             deliveryStatus: 'PENDING',
-            orderTotal: { subtotal, discount, total }
+            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, total }
         });
         await order.save();
+
+        // Auto-trigger driver assignment for local delivery
+        try {
+            assignmentEngine.startAssignment(order._id);
+        } catch (e) {
+            console.error('Driver assignment trigger failed:', e.message);
+        }
 
         res.json({
             success: true,

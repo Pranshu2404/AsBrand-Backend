@@ -1,6 +1,7 @@
 const Driver = require('../model/driver');
 const Order = require('../model/order');
 const User = require('../model/user');
+const { getDistanceAndETA } = require('./googleMapsService');
 // Optional: If you need to manipulate socket.io directly here, you can require it or pass it in.
 
 // Simple distance calculation (Haversine formula in km)
@@ -135,7 +136,7 @@ class DriverAssignmentEngine {
         this.activeAssignments.set(orderIdStr, assignment);
     }
 
-    handleAccept(orderIdStr, driverIdStr) {
+    async handleAccept(orderIdStr, driverIdStr) {
         const assignment = this.activeAssignments.get(orderIdStr);
         if (!assignment) return;
 
@@ -144,12 +145,64 @@ class DriverAssignmentEngine {
 
         console.log(`[AssignmentEngine] Driver ${driverIdStr} accepted order ${orderIdStr}`);
         
-        // Update Order to mark assigned driver
-        Order.findByIdAndUpdate(orderIdStr, { 
-            assignedDriver: driverIdStr, 
-            orderStatus: 'shipped',
-            deliveryStatus: 'PICKED_UP'
-        }).exec();
+        try {
+            // Get the order for ETA calculation
+            const order = await Order.findById(orderIdStr);
+            if (order && order.shippingAddress) {
+                // Find supplier pickup coords
+                const supplierId = order.items?.[0]?.supplierId;
+                const supplier = supplierId ? await User.findById(supplierId) : null;
+                const pickupLat = supplier?.supplierProfile?.pickupAddress?.latitude;
+                const pickupLng = supplier?.supplierProfile?.pickupAddress?.longitude;
+                const dropLat = order.shippingAddress.latitude;
+                const dropLng = order.shippingAddress.longitude;
+
+                if (pickupLat && pickupLng && dropLat && dropLng) {
+                    const eta = await getDistanceAndETA(pickupLat, pickupLng, dropLat, dropLng);
+                    order.estimatedDeliveryMinutes = eta.durationMinutes;
+                    order.assignedDriver = driverIdStr;
+                    order.orderStatus = 'shipped';
+                    order.deliveryStatus = 'PICKED_UP';
+                    await order.save();
+
+                    // Notify customer app
+                    if (this.io) {
+                        this.io.emit(`order_accepted_${order.userID.toString()}`, {
+                            orderId: orderIdStr,
+                            driverId: driverIdStr,
+                            estimatedMinutes: eta.durationMinutes,
+                            distanceKm: eta.distanceKm,
+                            distanceText: eta.distanceText,
+                            durationText: eta.durationText
+                        });
+                    }
+                } else {
+                    // No coords, just assign without ETA
+                    await Order.findByIdAndUpdate(orderIdStr, {
+                        assignedDriver: driverIdStr,
+                        orderStatus: 'shipped',
+                        deliveryStatus: 'PICKED_UP',
+                        estimatedDeliveryMinutes: 15 // default estimate
+                    });
+                }
+            } else {
+                await Order.findByIdAndUpdate(orderIdStr, {
+                    assignedDriver: driverIdStr,
+                    orderStatus: 'shipped',
+                    deliveryStatus: 'PICKED_UP',
+                    estimatedDeliveryMinutes: 15
+                });
+            }
+        } catch (error) {
+            console.error(`[AssignmentEngine] ETA calc error:`, error.message);
+            // Fallback: just assign
+            await Order.findByIdAndUpdate(orderIdStr, {
+                assignedDriver: driverIdStr,
+                orderStatus: 'shipped',
+                deliveryStatus: 'PICKED_UP',
+                estimatedDeliveryMinutes: 15
+            }).exec();
+        }
 
         // Cleanup
         this.activeAssignments.delete(orderIdStr);

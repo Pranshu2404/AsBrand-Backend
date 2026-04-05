@@ -55,7 +55,13 @@ const orderSchema = new mongoose.Schema({
     city: String,
     state: String,
     postalCode: String,
-    country: String
+    country: String,
+    latitude: Number,
+    longitude: Number
+  },
+  estimatedDeliveryMinutes: {
+    type: Number,
+    default: null
   },
 
   paymentMethod: {
