@@ -24,8 +24,7 @@ const orderSchema = new mongoose.Schema({
       },
       supplierId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        ref: 'User'
       },
       productName: {
         type: String,
