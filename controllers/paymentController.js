@@ -27,8 +27,21 @@ function getRazorpay() {
  */
 const initiateOrder = async (req, res) => {
     try {
-        const { items, shippingAddress, paymentMethod, couponCode } = req.body;
+        const { items: rawItems, shippingAddress, paymentMethod, couponCode } = req.body;
         const userID = req.user.id;
+
+        // Sanitize items — remove undefined fields to avoid Mongoose validation errors
+        const items = (rawItems || []).map(item => {
+            const clean = {
+                productID: item.productID,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price,
+                variant: item.variant,
+            };
+            if (item.supplierId) clean.supplierId = item.supplierId;
+            return clean;
+        });
 
         // Calculate total on server (never trust client)
         let subtotal = 0;
@@ -171,8 +184,21 @@ const verifyPayment = async (req, res) => {
  */
 const placeCodOrder = async (req, res) => {
     try {
-        const { items, shippingAddress, couponCode } = req.body;
+        const { items: rawItems, shippingAddress, couponCode } = req.body;
         const userID = req.user.id;
+
+        // Sanitize items — remove undefined fields
+        const items = (rawItems || []).map(item => {
+            const clean = {
+                productID: item.productID,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price,
+                variant: item.variant,
+            };
+            if (item.supplierId) clean.supplierId = item.supplierId;
+            return clean;
+        });
 
         // Calculate total on server
         let subtotal = 0;
