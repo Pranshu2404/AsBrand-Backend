@@ -21,14 +21,22 @@ router.get('/', asyncHandler(async (req, res) => {
 // UPDATE settings (Admin only)
 router.put('/', adminMiddleware, asyncHandler(async (req, res) => {
     try {
-        const { referralRewardPercent, firstOrderRewardPercent } = req.body;
+        const {
+            referralRewardPercent, firstOrderRewardPercent,
+            deliveryChargeWithin1km, deliveryChargePerKm2to5,
+            deliveryChargeOver5km, handlingCharge
+        } = req.body;
         
         let setting = await Setting.findOne();
         if (!setting) {
-            setting = new Setting({ referralRewardPercent, firstOrderRewardPercent });
+            setting = new Setting(req.body);
         } else {
             if (referralRewardPercent !== undefined) setting.referralRewardPercent = referralRewardPercent;
             if (firstOrderRewardPercent !== undefined) setting.firstOrderRewardPercent = firstOrderRewardPercent;
+            if (deliveryChargeWithin1km !== undefined) setting.deliveryChargeWithin1km = deliveryChargeWithin1km;
+            if (deliveryChargePerKm2to5 !== undefined) setting.deliveryChargePerKm2to5 = deliveryChargePerKm2to5;
+            if (deliveryChargeOver5km !== undefined) setting.deliveryChargeOver5km = deliveryChargeOver5km;
+            if (handlingCharge !== undefined) setting.handlingCharge = handlingCharge;
         }
 
         const updatedSetting = await setting.save();

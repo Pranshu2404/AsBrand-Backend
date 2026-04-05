@@ -1,6 +1,7 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Order = require('../model/order');
+const Setting = require('../model/setting');
 
 // Lazy Razorpay initialization (prevents crash if keys missing)
 let razorpay = null;
@@ -36,8 +37,12 @@ const initiateOrder = async (req, res) => {
 
         // Apply discount if coupon exists (TODO: validate coupon)
         const discount = 0;
-        const shippingCharge = 49; // ₹49 flat shipping charge
-        const total = subtotal - discount + shippingCharge;
+
+        // Dynamic charges from settings
+        const settings = await Setting.findOne() || {};
+        const shippingCharge = req.body.deliveryCharge ?? 0;
+        const handlingCharge = settings.handlingCharge ?? 5;
+        const total = subtotal - discount + shippingCharge + handlingCharge;
 
         // Create order in database with status 'created'
         const order = new Order({
@@ -50,7 +55,8 @@ const initiateOrder = async (req, res) => {
             orderStatus: 'pending',
             paymentStatus: 'created',
             shippingCharge,
-            orderTotal: { subtotal, discount, total }
+            handlingCharge,
+            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, total }
         });
         await order.save();
 
@@ -166,7 +172,12 @@ const placeCodOrder = async (req, res) => {
             subtotal += item.price * item.quantity;
         }
         const discount = 0;
-        const total = subtotal - discount;
+
+        // Dynamic charges from settings
+        const settings = await Setting.findOne() || {};
+        const shippingCharge = req.body.deliveryCharge ?? 0;
+        const handlingCharge = settings.handlingCharge ?? 5;
+        const total = subtotal - discount + shippingCharge + handlingCharge;
 
         const order = new Order({
             userID,
