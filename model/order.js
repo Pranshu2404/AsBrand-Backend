@@ -92,6 +92,8 @@ const orderSchema = new mongoose.Schema({
   orderTotal: {
     subtotal: Number,
     discount: Number,
+    shippingCharge: Number,
+    handlingCharge: Number,
     total: Number
   },
   trackingUrl: {
@@ -100,6 +102,10 @@ const orderSchema = new mongoose.Schema({
 
   // Delivery / Shipping fields
   shippingCharge: {
+    type: Number,
+    default: 0
+  },
+  handlingCharge: {
     type: Number,
     default: 0
   },
