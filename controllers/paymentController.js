@@ -77,7 +77,17 @@ const initiateOrder = async (req, res) => {
         // If COD, no Razorpay needed
         if (paymentMethod === 'cod') {
             order.paymentStatus = 'pending'; // Will be paid on delivery
+            order.orderStatus = 'processing';
             await order.save();
+
+            // Notify drivers immediately
+            try {
+                const assignmentEngine = require('../services/driverAssignment');
+                assignmentEngine.startAssignment(order._id);
+            } catch (err) {
+                console.error('Error starting assignment engine for COD:', err);
+            }
+
             return res.json({
                 success: true,
                 message: 'COD order placed successfully',

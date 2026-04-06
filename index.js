@@ -119,7 +119,14 @@ io.on('connection', (socket) => {
       console.log(`[Socket] Driver ${driverId} marked online at ${lat}, ${lng}`);
       const assignmentEngine = require('./services/driverAssignment');
       const Order = require('./model/order');
+      const Driver = require('./model/driver');
       try {
+        // Fix Race Condition: Ensure DB is definitely updated before we run assignment
+        await Driver.findByIdAndUpdate(driverId, {
+           isOnline: true,
+           currentLocation: { lat, lng, updatedAt: new Date() }
+        });
+
         // Find any active orders that need a driver and haven't been picked up/assigned
         const unassignedOrders = await Order.find({
           orderStatus: { $in: ['processing', 'processed'] },
