@@ -32,8 +32,28 @@ const generateToken = (user) => {
     );
 };
 
-// Simple Geocoding using Nominatim (OpenStreetMap)
-const getCoordinates = async (city, state) => {
+// Geocoding using Google Maps API (precise) with Nominatim fallback
+const getCoordinates = async (city, state, pincode) => {
+    // Try Google Maps Geocoding API first (much more accurate)
+    const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (googleKey) {
+        try {
+            const query = pincode ? `${city}, ${state} ${pincode}, India` : `${city}, ${state}, India`;
+            const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+                params: { address: query, key: googleKey }
+            });
+            if (response.data.status === 'OK' && response.data.results.length > 0) {
+                const loc = response.data.results[0].geometry.location;
+                return {
+                    data: { data: [{ latitude: loc.lat, longitude: loc.lng }] }
+                };
+            }
+        } catch (error) {
+            console.error("Google Geocoding failed:", error.message);
+        }
+    }
+
+    // Fallback to Nominatim (less accurate, city-level)
     try {
         const query = `${city}, ${state}`;
         const response = await axios.get(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
@@ -51,13 +71,13 @@ const getCoordinates = async (city, state) => {
             };
         }
     } catch (error) {
-        console.error("Geocoding failed:", error.message);
+        console.error("Nominatim Geocoding failed:", error.message);
     }
     
-    // Fallback to avoid breaking registration if location API fails or limit is reached
+    // Final fallback
     return {
         data: {
-            data: [{ latitude: 28.6139, longitude: 77.2090 }] // New Delhi coordinates
+            data: [{ latitude: 28.6139, longitude: 77.2090 }] // New Delhi
         }
     };
 };
@@ -412,7 +432,7 @@ router.post('/register', authMiddleware, asyncHandler(async (req, res) => {
     // Determine coordinates
     if (pickupAddress && pickupAddress.city && pickupAddress.state) {
         if (!(pickupAddress.latitude && pickupAddress.longitude)) {
-            const geocodeResponse = await getCoordinates(pickupAddress.city, pickupAddress.state);
+            const geocodeResponse = await getCoordinates(pickupAddress.city, pickupAddress.state, pickupAddress.pincode);
             const geocodeData = geocodeResponse?.data?.data?.[0];
 
             if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
