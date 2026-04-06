@@ -814,81 +814,110 @@ router.post('/products', authMiddleware, supplierMiddleware, asyncHandler(async 
     }
 }));
 
-// PUT /supplier/products/:id — Update own product
+// PUT /supplier/products/:id — Update own product OR linked SupplierProduct
 router.put('/products/:id', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    // First try to find as a directly-owned Product
     const product = await Product.findOne({ _id: req.params.id, supplierId: req.user.id });
 
-    if (!product) {
+    if (product) {
+        // It's an own Product listing — update normally
+        const allowedFields = [
+            'name', 'description', 'quantity', 'price', 'offerPrice',
+            'proCategoryId', 'proSubCategoryId', 'proSubSubCategoryId', 'proBrandId',
+            'gender', 'material', 'fit', 'pattern', 'sleeveLength', 'neckline', 'occasion',
+            'careInstructions', 'tags', 'specifications', 'weight', 'dimensions',
+            'isActive', 'featured'
+        ];
+
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                product[field] = req.body[field];
+            }
+        });
+
+        // Parse complex fields
+        if (req.body.proVariants !== undefined) {
+            let parsedProVariants = req.body.proVariants;
+            if (typeof req.body.proVariants === 'string') {
+                try { parsedProVariants = JSON.parse(req.body.proVariants); } catch (e) { parsedProVariants = []; }
+            }
+            product.proVariants = parsedProVariants;
+        }
+
+        if (req.body.skus !== undefined) {
+            let parsedSkus = req.body.skus;
+            if (typeof req.body.skus === 'string') {
+                try { parsedSkus = JSON.parse(req.body.skus); } catch (e) { parsedSkus = []; }
+            }
+            product.skus = parsedSkus;
+        }
+
+        // Handle preUploadedUrls if provided via JSON update
+        if (req.body.preUploadedUrls !== undefined) {
+            let parsedPreUploadedUrls = req.body.preUploadedUrls;
+            if (typeof req.body.preUploadedUrls === 'string') {
+                try { parsedPreUploadedUrls = JSON.parse(req.body.preUploadedUrls); } catch (e) { parsedPreUploadedUrls = []; }
+            }
+
+            if (Array.isArray(parsedPreUploadedUrls)) {
+                const imageList = [];
+                parsedPreUploadedUrls.forEach((item, index) => {
+                    if (typeof item === 'string') {
+                        imageList.push({ image: index + 1, url: item });
+                    } else if (item && item.url) {
+                        imageList.push({ image: item.image || index + 1, url: item.url });
+                    }
+                });
+                if (imageList.length > 0) {
+                    product.images = imageList;
+                }
+            }
+        }
+
+        await product.save();
+        return res.json({ success: true, message: 'Product updated.', data: product });
+    }
+
+    // Not a direct listing — check if it is a SupplierProduct (linked) record
+    const supplierProduct = await SupplierProduct.findOne({ _id: req.params.id, supplierId: req.user.id });
+    if (!supplierProduct) {
         return res.status(404).json({ success: false, message: 'Product not found or not yours.' });
     }
 
-    const allowedFields = [
-        'name', 'description', 'quantity', 'price', 'offerPrice',
-        'proCategoryId', 'proSubCategoryId', 'proSubSubCategoryId', 'proBrandId',
-        'gender', 'material', 'fit', 'pattern', 'sleeveLength', 'neckline', 'occasion',
-        'careInstructions', 'tags', 'specifications', 'weight', 'dimensions',
-        'isActive', 'featured'
-    ];
-
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            product[field] = req.body[field];
-        }
-    });
-
-    // Parse complex fields
-    if (req.body.proVariants !== undefined) {
-        let parsedProVariants = req.body.proVariants;
-        if (typeof req.body.proVariants === 'string') {
-            try { parsedProVariants = JSON.parse(req.body.proVariants); } catch (e) { parsedProVariants = []; }
-        }
-        product.proVariants = parsedProVariants;
-    }
-
+    // Update only the supplier-specific fields: price, offerPrice, quantity
+    if (req.body.price !== undefined) supplierProduct.price = parseFloat(req.body.price);
+    if (req.body.offerPrice !== undefined) supplierProduct.offerPrice = req.body.offerPrice ? parseFloat(req.body.offerPrice) : undefined;
+    if (req.body.quantity !== undefined) supplierProduct.quantity = parseInt(req.body.quantity);
     if (req.body.skus !== undefined) {
         let parsedSkus = req.body.skus;
         if (typeof req.body.skus === 'string') {
             try { parsedSkus = JSON.parse(req.body.skus); } catch (e) { parsedSkus = []; }
         }
-        product.skus = parsedSkus;
+        supplierProduct.skus = parsedSkus;
     }
 
-    // Handle preUploadedUrls if provided via JSON update
-    if (req.body.preUploadedUrls !== undefined) {
-        let parsedPreUploadedUrls = req.body.preUploadedUrls;
-        if (typeof req.body.preUploadedUrls === 'string') {
-            try { parsedPreUploadedUrls = JSON.parse(req.body.preUploadedUrls); } catch (e) { parsedPreUploadedUrls = []; }
-        }
-
-        if (Array.isArray(parsedPreUploadedUrls)) {
-            const imageList = [];
-            parsedPreUploadedUrls.forEach((item, index) => {
-                if (typeof item === 'string') {
-                    imageList.push({ image: index + 1, url: item });
-                } else if (item && item.url) {
-                    imageList.push({ image: item.image || index + 1, url: item.url });
-                }
-            });
-            if (imageList.length > 0) {
-                product.images = imageList;
-            }
-        }
-    }
-
-    await product.save();
-    res.json({ success: true, message: 'Product updated.', data: product });
+    await supplierProduct.save();
+    return res.json({ success: true, message: 'Linked product updated.', data: supplierProduct });
 }));
 
-// DELETE /supplier/products/:id — Delete own product
-router.delete('/products/:id', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
-    const product = await Product.findOneAndDelete({ _id: req.params.id, supplierId: req.user.id });
 
-    if (!product) {
+// DELETE /supplier/products/:id — Delete own product OR linked SupplierProduct
+router.delete('/products/:id', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    // First try to delete as a directly-owned Product
+    const product = await Product.findOneAndDelete({ _id: req.params.id, supplierId: req.user.id });
+    if (product) {
+        return res.json({ success: true, message: 'Product deleted.' });
+    }
+
+    // Not a direct listing — check if it is a SupplierProduct (linked) record
+    const supplierProduct = await SupplierProduct.findOneAndDelete({ _id: req.params.id, supplierId: req.user.id });
+    if (!supplierProduct) {
         return res.status(404).json({ success: false, message: 'Product not found or not yours.' });
     }
 
-    res.json({ success: true, message: 'Product deleted.' });
+    return res.json({ success: true, message: 'Linked product removed from your store.' });
 }));
+
 
 // ============================================================
 // SUPPLIER ORDERS
