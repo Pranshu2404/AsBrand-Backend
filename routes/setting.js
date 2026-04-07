@@ -23,7 +23,8 @@ router.put('/', asyncHandler(async (req, res) => {
         const {
             referralRewardPercent, firstOrderRewardPercent,
             deliveryChargeWithin1km, deliveryChargePerKm2to5,
-            deliveryChargeOver5km, handlingCharge
+            deliveryChargeOver5km, handlingCharge,
+            driverPickupFreeKm, driverPickupRatePerKm, driverDropRatePerKm
         } = req.body;
         
         let setting = await Setting.findOne();
@@ -36,6 +37,9 @@ router.put('/', asyncHandler(async (req, res) => {
             if (deliveryChargePerKm2to5 !== undefined) setting.deliveryChargePerKm2to5 = deliveryChargePerKm2to5;
             if (deliveryChargeOver5km !== undefined) setting.deliveryChargeOver5km = deliveryChargeOver5km;
             if (handlingCharge !== undefined) setting.handlingCharge = handlingCharge;
+            if (driverPickupFreeKm !== undefined) setting.driverPickupFreeKm = driverPickupFreeKm;
+            if (driverPickupRatePerKm !== undefined) setting.driverPickupRatePerKm = driverPickupRatePerKm;
+            if (driverDropRatePerKm !== undefined) setting.driverDropRatePerKm = driverDropRatePerKm;
         }
 
         const updatedSetting = await setting.save();
