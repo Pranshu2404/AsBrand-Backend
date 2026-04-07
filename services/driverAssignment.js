@@ -50,6 +50,22 @@ class DriverAssignmentEngine {
             // Product details summary
             const productNames = order.items.map(i => i.productName).join(', ');
 
+            // Drop distance (supplier → customer)
+            const customerLat = order.shippingAddress?.latitude;
+            const customerLng = order.shippingAddress?.longitude;
+            let dropDistanceKm = 0;
+            if (customerLat && customerLng) {
+                dropDistanceKm = calculateDistance(pickupLat, pickupLng, customerLat, customerLng);
+            }
+
+            // Fetch admin rate settings
+            const Setting = require('../model/setting');
+            let settings = await Setting.findOne();
+            if (!settings) settings = new Setting();
+            const pickupFreeKm = settings.driverPickupFreeKm || 1;
+            const pickupRate = settings.driverPickupRatePerKm || 3;
+            const dropRate = settings.driverDropRatePerKm || 12;
+
             // Find online drivers
             const onlineDrivers = await Driver.find({ isOnline: true });
 
@@ -77,13 +93,32 @@ class DriverAssignmentEngine {
                 return;
             }
 
-            // Prepare payload
+            // Prepare payload (enhanced for Zomato-style UI)
             const orderPayload = {
                 orderId: order._id.toString(),
                 pickupAddress: `${supplierShopName}, ${supplier?.supplierProfile?.pickupAddress?.street || supplier?.supplierProfile?.pickupAddress?.address || ''}`,
                 dropAddress: `${order.shippingAddress?.street || order.shippingAddress?.address || ''}, ${order.shippingAddress?.city || ''}`,
                 amount: order.totalPrice || (order.orderTotal && order.orderTotal.total) || 0,
-                products: productNames
+                products: productNames,
+                // Coordinates for map
+                supplierLat: pickupLat,
+                supplierLng: pickupLng,
+                customerLat: customerLat,
+                customerLng: customerLng,
+                // Contact info
+                supplierName: supplierShopName,
+                supplierPhone: supplier.phone || '',
+                customerName: order.userID?.name || 'Customer',
+                customerPhone: order.userID?.phone || '',
+                // Payment & order info
+                paymentMethod: order.paymentMethod || 'prepaid',
+                orderShortId: order._id.toString().slice(-8).toUpperCase(),
+                // Distances
+                dropDistanceKm: parseFloat(dropDistanceKm.toFixed(2)),
+                // Rates for earnings calculation on driver app
+                pickupFreeKm,
+                pickupRate,
+                dropRate,
             };
 
             // Start cascading
@@ -120,7 +155,8 @@ class DriverAssignmentEngine {
             // We append distance to payload
             const payloadWithDistance = {
                 ...payload,
-                distance: `${nextDriver.distance.toFixed(1)} km`
+                distance: `${nextDriver.distance.toFixed(1)} km`,
+                pickupDistanceKm: parseFloat(nextDriver.distance.toFixed(2)),
             };
 
             this.io.emit(`new_order_${nextDriver.driver._id.toString()}`, payloadWithDistance);

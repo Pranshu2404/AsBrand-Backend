@@ -26,6 +26,19 @@ const settingSchema = new mongoose.Schema({
   handlingCharge: {
     type: Number,
     default: 5
+  },
+  // Driver earnings configuration
+  driverPickupFreeKm: {
+    type: Number,
+    default: 1   // Pickup distance under this = ₹0
+  },
+  driverPickupRatePerKm: {
+    type: Number,
+    default: 3   // ₹ per km for pickup beyond free threshold
+  },
+  driverDropRatePerKm: {
+    type: Number,
+    default: 12  // ₹ per km for drop-off
   }
 }, { timestamps: true });
 
