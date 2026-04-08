@@ -559,6 +559,56 @@ router.get('/dashboard', authMiddleware, supplierMiddleware, asyncHandler(async 
     });
 }));
 
+// GET /supplier/finance — Get detailed finance and payouts overview
+router.get('/finance', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    const supplierId = req.user.id;
+
+    // Get all orders containing this supplier's items that are delivered
+    const deliveredOrders = await Order.find({
+        'items.supplierId': supplierId,
+        orderStatus: 'delivered'
+    }).sort({ createdAt: -1 });
+
+    let totalEarnings = 0;
+    
+    // Recent transactions (last 10 delivered orders)
+    const recentTransactions = deliveredOrders.slice(0, 10).map(order => {
+        let earnedFromOrder = 0;
+        order.items.forEach(item => {
+            if (item.supplierId && item.supplierId.toString() === supplierId) {
+                earnedFromOrder += (item.price || 0) * (item.quantity || 1);
+            }
+        });
+        
+        totalEarnings += earnedFromOrder;
+
+        return {
+            orderId: order._id,
+            date: order.createdAt,
+            amount: earnedFromOrder,
+            status: 'completed'
+        };
+    });
+    
+    // Calculate total earnings from all other older orders
+    deliveredOrders.slice(10).forEach(order => {
+        order.items.forEach(item => {
+            if (item.supplierId && item.supplierId.toString() === supplierId) {
+                totalEarnings += (item.price || 0) * (item.quantity || 1);
+            }
+        });
+    });
+
+    res.json({
+        success: true,
+        data: {
+            totalEarnings: Math.round(totalEarnings),
+            pendingPayouts: Math.round(totalEarnings), // Mocked for now
+            recentTransactions
+        }
+    });
+}));
+
 // ============================================================
 // SUPPLIER PRODUCTS
 // ============================================================
@@ -944,6 +994,127 @@ router.get('/orders', authMiddleware, supplierMiddleware, asyncHandler(async (re
     });
 
     res.json({ success: true, data: supplierOrders });
+}));
+
+// ============================================================
+// SUPPLIER ORDER ACTIONS (Zomato-style lifecycle)
+// ============================================================
+
+// PUT /supplier/orders/:id/accept — Accept order & start preparing
+router.put('/orders/:id/accept', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+    // Verify this order belongs to this supplier
+    const supplierProducts = await Product.find({ supplierId: req.user.id }).select('_id');
+    const productIds = supplierProducts.map(p => p._id.toString());
+    const belongsToSupplier = order.items.some(item => productIds.includes(item.productID?.toString()));
+    if (!belongsToSupplier) return res.status(403).json({ success: false, message: 'Order does not belong to you.' });
+
+    if (!['pending', 'processing'].includes(order.orderStatus)) {
+        return res.status(400).json({ success: false, message: `Cannot accept order in "${order.orderStatus}" status.` });
+    }
+
+    const prepMinutes = req.body.estimatedPrepMinutes || 15;
+
+    order.orderStatus = 'preparing';
+    order.supplierAcceptedAt = new Date();
+    order.prepStartedAt = new Date();
+    order.estimatedPrepMinutes = prepMinutes;
+    await order.save();
+
+    // Emit socket event for real-time updates
+    const io = req.app.get('io');
+    if (io) {
+        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'preparing' });
+        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'preparing', estimatedPrepMinutes: prepMinutes });
+    }
+
+    // Start driver assignment immediately so a driver is found by the time food is ready
+    const assignmentEngine = require('../services/driverAssignment');
+    assignmentEngine.startAssignment(order._id);
+
+    res.json({ success: true, message: 'Order accepted. Preparing started.', data: order });
+}));
+
+// PUT /supplier/orders/:id/reject — Reject order
+router.put('/orders/:id/reject', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+    const supplierProducts = await Product.find({ supplierId: req.user.id }).select('_id');
+    const productIds = supplierProducts.map(p => p._id.toString());
+    const belongsToSupplier = order.items.some(item => productIds.includes(item.productID?.toString()));
+    if (!belongsToSupplier) return res.status(403).json({ success: false, message: 'Order does not belong to you.' });
+
+    if (!['pending', 'processing'].includes(order.orderStatus)) {
+        return res.status(400).json({ success: false, message: `Cannot reject order in "${order.orderStatus}" status.` });
+    }
+
+    order.orderStatus = 'rejected';
+    await order.save();
+
+    const io = req.app.get('io');
+    if (io) {
+        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'rejected' });
+        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'rejected' });
+    }
+
+    res.json({ success: true, message: 'Order rejected.', data: order });
+}));
+
+// PUT /supplier/orders/:id/ready — Mark order as ready for pickup
+router.put('/orders/:id/ready', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+    const supplierProducts = await Product.find({ supplierId: req.user.id }).select('_id');
+    const productIds = supplierProducts.map(p => p._id.toString());
+    const belongsToSupplier = order.items.some(item => productIds.includes(item.productID?.toString()));
+    if (!belongsToSupplier) return res.status(403).json({ success: false, message: 'Order does not belong to you.' });
+
+    if (order.orderStatus !== 'preparing') {
+        return res.status(400).json({ success: false, message: `Cannot mark ready from "${order.orderStatus}" status.` });
+    }
+
+    order.orderStatus = 'ready';
+    order.readyAt = new Date();
+    await order.save();
+
+    const io = req.app.get('io');
+    if (io) {
+        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'ready' });
+        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'ready' });
+    }
+
+    res.json({ success: true, message: 'Order marked as ready for pickup.', data: order });
+}));
+
+// PUT /supplier/orders/:id/picked-up — Mark order as picked up by driver
+router.put('/orders/:id/picked-up', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+    const supplierProducts = await Product.find({ supplierId: req.user.id }).select('_id');
+    const productIds = supplierProducts.map(p => p._id.toString());
+    const belongsToSupplier = order.items.some(item => productIds.includes(item.productID?.toString()));
+    if (!belongsToSupplier) return res.status(403).json({ success: false, message: 'Order does not belong to you.' });
+
+    if (order.orderStatus !== 'ready') {
+        return res.status(400).json({ success: false, message: `Cannot mark picked up from "${order.orderStatus}" status.` });
+    }
+
+    order.orderStatus = 'picked_up';
+    order.pickedUpAt = new Date();
+    await order.save();
+
+    const io = req.app.get('io');
+    if (io) {
+        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'picked_up' });
+        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'picked_up' });
+    }
+
+    res.json({ success: true, message: 'Order picked up by delivery partner.', data: order });
 }));
 
 // ============================================================

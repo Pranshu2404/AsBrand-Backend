@@ -38,6 +38,7 @@ const initiateOrder = async (req, res) => {
                 quantity: item.quantity,
                 price: item.price,
                 variant: item.variant,
+                packagingCharge: item.packagingCharge || 0,
             };
             if (item.supplierId) clean.supplierId = item.supplierId;
             return clean;
@@ -45,8 +46,10 @@ const initiateOrder = async (req, res) => {
 
         // Calculate total on server (never trust client)
         let subtotal = 0;
+        let totalPackagingCharge = 0;
         for (const item of items) {
             subtotal += item.price * item.quantity;
+            totalPackagingCharge += item.packagingCharge * item.quantity;
         }
 
         // Apply discount if coupon exists (TODO: validate coupon)
@@ -56,7 +59,7 @@ const initiateOrder = async (req, res) => {
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
         const handlingCharge = settings.handlingCharge ?? 5;
-        const total = subtotal - discount + shippingCharge + handlingCharge;
+        const total = subtotal - discount + shippingCharge + handlingCharge + totalPackagingCharge;
 
         // Create order in database with status 'created'
         const order = new Order({
@@ -70,22 +73,30 @@ const initiateOrder = async (req, res) => {
             paymentStatus: 'created',
             shippingCharge,
             handlingCharge,
-            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, total }
+            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 
         // If COD, no Razorpay needed
         if (paymentMethod === 'cod') {
             order.paymentStatus = 'pending'; // Will be paid on delivery
-            order.orderStatus = 'processing';
+            order.orderStatus = 'pending'; // Wait for supplier to accept
             await order.save();
 
-            // Notify drivers immediately
+            // Notify supplier via socket (Zomato flow: supplier accepts first)
             try {
-                const assignmentEngine = require('../services/driverAssignment');
-                assignmentEngine.startAssignment(order._id);
+                const populatedOrder = await Order.findById(order._id)
+                    .populate('userID', 'name email phone')
+                    .populate('items.productID', 'name primaryImage images');
+                const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+                const io = req.app.get('io');
+                if (io) {
+                    for (const sid of supplierIds) {
+                        io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                    }
+                }
             } catch (err) {
-                console.error('Error starting assignment engine for COD:', err);
+                console.error('Error notifying supplier for COD:', err);
             }
 
             return res.json({
@@ -157,15 +168,24 @@ const verifyPayment = async (req, res) => {
             order.paymentStatus = 'paid';
             order.razorpayPaymentId = razorpay_payment_id;
             order.razorpaySignature = razorpay_signature;
-            order.orderStatus = 'processing';
+            order.orderStatus = 'pending'; // Wait for supplier to accept
             order.deliveryStatus = 'PENDING';
             await order.save();
 
-            // Auto-trigger driver assignment for local delivery
+            // Notify supplier via socket (Zomato flow)
             try {
-                assignmentEngine.startAssignment(order._id);
+                const populatedOrder = await Order.findById(order._id)
+                    .populate('userID', 'name email phone')
+                    .populate('items.productID', 'name primaryImage images');
+                const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+                const io = req.app.get('io');
+                if (io) {
+                    for (const sid of supplierIds) {
+                        io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                    }
+                }
             } catch (e) {
-                console.error('Driver assignment trigger failed:', e.message);
+                console.error('Supplier notification failed:', e.message);
             }
 
             res.json({
@@ -205,6 +225,7 @@ const placeCodOrder = async (req, res) => {
                 quantity: item.quantity,
                 price: item.price,
                 variant: item.variant,
+                packagingCharge: item.packagingCharge || 0,
             };
             if (item.supplierId) clean.supplierId = item.supplierId;
             return clean;
@@ -212,8 +233,10 @@ const placeCodOrder = async (req, res) => {
 
         // Calculate total on server
         let subtotal = 0;
+        let totalPackagingCharge = 0;
         for (const item of items) {
             subtotal += item.price * item.quantity;
+            totalPackagingCharge += item.packagingCharge * item.quantity;
         }
         const discount = 0;
 
@@ -221,7 +244,7 @@ const placeCodOrder = async (req, res) => {
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
         const handlingCharge = settings.handlingCharge ?? 5;
-        const total = subtotal - discount + shippingCharge + handlingCharge;
+        const total = subtotal - discount + shippingCharge + handlingCharge + totalPackagingCharge;
 
         const order = new Order({
             userID,
@@ -233,15 +256,24 @@ const placeCodOrder = async (req, res) => {
             orderStatus: 'processing',
             paymentStatus: 'pending', // Payment on delivery
             deliveryStatus: 'PENDING',
-            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, total }
+            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 
-        // Auto-trigger driver assignment for local delivery
+        // Notify supplier via socket (Zomato flow)
         try {
-            assignmentEngine.startAssignment(order._id);
+            const populatedOrder = await Order.findById(order._id)
+                .populate('userID', 'name email phone')
+                .populate('items.productID', 'name primaryImage images');
+            const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+            const io = req.app.get('io');
+            if (io) {
+                for (const sid of supplierIds) {
+                    io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                }
+            }
         } catch (e) {
-            console.error('Driver assignment trigger failed:', e.message);
+            console.error('Supplier notification failed:', e.message);
         }
 
         res.json({

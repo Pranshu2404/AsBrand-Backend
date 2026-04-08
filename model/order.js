@@ -12,9 +12,15 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['pending', 'accepted', 'preparing', 'ready', 'picked_up', 'shipped', 'delivered', 'cancelled', 'rejected', 'processing'],
     default: 'pending'
   },
+  // Supplier action timestamps (Zomato-style lifecycle)
+  supplierAcceptedAt: { type: Date, default: null },
+  prepStartedAt: { type: Date, default: null },
+  readyAt: { type: Date, default: null },
+  pickedUpAt: { type: Date, default: null },
+  estimatedPrepMinutes: { type: Number, default: 15 },
   items: [
     {
       productID: {
@@ -41,6 +47,10 @@ const orderSchema = new mongoose.Schema({
       variant: {
         type: String,
       },
+      packagingCharge: {
+        type: Number,
+        default: 0
+      }
     }
   ],
   totalPrice: {
@@ -94,6 +104,7 @@ const orderSchema = new mongoose.Schema({
     discount: Number,
     shippingCharge: Number,
     handlingCharge: Number,
+    packagingCharge: Number,
     total: Number
   },
   trackingUrl: {

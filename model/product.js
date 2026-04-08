@@ -28,6 +28,10 @@ const productSchema = new mongoose.Schema({
     offerPrice: {
         type: Number
     },
+    packagingCharge: {
+        type: Number,
+        default: 0
+    },
     supplierPrice: {
         type: Number
     },
