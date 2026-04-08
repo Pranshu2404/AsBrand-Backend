@@ -77,15 +77,23 @@ const initiateOrder = async (req, res) => {
         // If COD, no Razorpay needed
         if (paymentMethod === 'cod') {
             order.paymentStatus = 'pending'; // Will be paid on delivery
-            order.orderStatus = 'processing';
+            order.orderStatus = 'pending'; // Wait for supplier to accept
             await order.save();
 
-            // Notify drivers immediately
+            // Notify supplier via socket (Zomato flow: supplier accepts first)
             try {
-                const assignmentEngine = require('../services/driverAssignment');
-                assignmentEngine.startAssignment(order._id);
+                const populatedOrder = await Order.findById(order._id)
+                    .populate('userID', 'name email phone')
+                    .populate('items.productID', 'name primaryImage images');
+                const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+                const io = req.app.get('io');
+                if (io) {
+                    for (const sid of supplierIds) {
+                        io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                    }
+                }
             } catch (err) {
-                console.error('Error starting assignment engine for COD:', err);
+                console.error('Error notifying supplier for COD:', err);
             }
 
             return res.json({
@@ -157,15 +165,24 @@ const verifyPayment = async (req, res) => {
             order.paymentStatus = 'paid';
             order.razorpayPaymentId = razorpay_payment_id;
             order.razorpaySignature = razorpay_signature;
-            order.orderStatus = 'processing';
+            order.orderStatus = 'pending'; // Wait for supplier to accept
             order.deliveryStatus = 'PENDING';
             await order.save();
 
-            // Auto-trigger driver assignment for local delivery
+            // Notify supplier via socket (Zomato flow)
             try {
-                assignmentEngine.startAssignment(order._id);
+                const populatedOrder = await Order.findById(order._id)
+                    .populate('userID', 'name email phone')
+                    .populate('items.productID', 'name primaryImage images');
+                const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+                const io = req.app.get('io');
+                if (io) {
+                    for (const sid of supplierIds) {
+                        io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                    }
+                }
             } catch (e) {
-                console.error('Driver assignment trigger failed:', e.message);
+                console.error('Supplier notification failed:', e.message);
             }
 
             res.json({
@@ -237,11 +254,20 @@ const placeCodOrder = async (req, res) => {
         });
         await order.save();
 
-        // Auto-trigger driver assignment for local delivery
+        // Notify supplier via socket (Zomato flow)
         try {
-            assignmentEngine.startAssignment(order._id);
+            const populatedOrder = await Order.findById(order._id)
+                .populate('userID', 'name email phone')
+                .populate('items.productID', 'name primaryImage images');
+            const supplierIds = [...new Set(order.items.map(i => i.supplierId?.toString()).filter(Boolean))];
+            const io = req.app.get('io');
+            if (io) {
+                for (const sid of supplierIds) {
+                    io.to(`supplier_${sid}`).emit('new_supplier_order', populatedOrder.toObject());
+                }
+            }
         } catch (e) {
-            console.error('Driver assignment trigger failed:', e.message);
+            console.error('Supplier notification failed:', e.message);
         }
 
         res.json({
