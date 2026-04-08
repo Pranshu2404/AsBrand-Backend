@@ -93,6 +93,22 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id}`);
 
+  // Supplier joins their room for new order notifications
+  socket.on('supplier_online', (data) => {
+    const { supplierId } = data;
+    if (supplierId) {
+      socket.join(`supplier_${supplierId}`);
+      console.log(`🏪 Supplier ${supplierId} joined room supplier_${supplierId}`);
+    }
+  });
+
+  socket.on('supplier_offline', (data) => {
+    const { supplierId } = data;
+    if (supplierId) {
+      socket.leave(`supplier_${supplierId}`);
+      console.log(`🏪 Supplier ${supplierId} left room`);
+    }
+  });
   // Driver joins a room for each active order
   socket.on('join_order', (orderId) => {
     socket.join(`order_${orderId}`);
@@ -168,6 +184,9 @@ io.on('connection', (socket) => {
 
 const assignmentEngine = require('./services/driverAssignment');
 assignmentEngine.setIO(io);
+
+// Share io with Express so routes can emit events
+app.set('io', io);
 
 server.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
