@@ -1052,12 +1052,13 @@ router.put('/orders/:id/reject', authMiddleware, supplierMiddleware, asyncHandle
     }
 
     order.orderStatus = 'rejected';
+    order.deliveryStatus = 'CANCELLED';
     await order.save();
 
     const io = req.app.get('io');
     if (io) {
-        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'rejected' });
-        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'rejected' });
+        io.emit(`order_status_${order._id}`, { orderId: order._id, status: 'rejected', deliveryStatus: 'CANCELLED' });
+        io.emit(`order_update_${order.userID}`, { orderId: order._id, status: 'rejected', deliveryStatus: 'CANCELLED' });
     }
 
     res.json({ success: true, message: 'Order rejected.', data: order });
