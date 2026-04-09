@@ -135,8 +135,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
             return res.status(404).json({ success: false, message: "Order not found." });
         }
 
-        // Trigger driver assignment if order is moved to 'processing' or 'ready'
-        if (orderStatus === 'processing' || orderStatus === 'ready') {
+        // Trigger driver assignment if order is moved to 'preparing' or 'ready'
+        if (orderStatus === 'preparing' || orderStatus === 'ready') {
             const assignmentEngine = require('../services/driverAssignment');
             assignmentEngine.startAssignment(updatedOrder._id);
         }

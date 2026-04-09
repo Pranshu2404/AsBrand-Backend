@@ -145,7 +145,7 @@ io.on('connection', (socket) => {
 
         // Find any active orders that need a driver and haven't been picked up/assigned
         const unassignedOrders = await Order.find({
-          orderStatus: { $in: ['processing', 'processed'] },
+          orderStatus: { $in: ['preparing', 'ready', 'processed'] },
           assignedDriver: null
         });
 
