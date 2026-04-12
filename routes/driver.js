@@ -269,24 +269,18 @@ router.patch('/orders/:id/status', authMiddleware, driverMiddleware, asyncHandle
         const driverLat = driver.currentLocation?.lat || 0;
         const driverLng = driver.currentLocation?.lng || 0;
 
-        // Haversine distance calculation
-        function haversineKm(lat1, lon1, lat2, lon2) {
-          const R = 6371;
-          const dLat = (lat2 - lat1) * Math.PI / 180;
-          const dLon = (lon2 - lon1) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) ** 2;
-          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
+        // Use Google Maps API for actual road distance (not straight-line)
+        const { getDistanceAndETA } = require('../services/googleMapsService');
 
         let pickupDistKm = 0;
         let dropDistKm = 0;
-        if (pickupLat && pickupLng) {
-          pickupDistKm = haversineKm(driverLat, driverLng, pickupLat, pickupLng);
+        if (pickupLat && pickupLng && driverLat && driverLng) {
+          const pickupResult = await getDistanceAndETA(driverLat, driverLng, pickupLat, pickupLng);
+          pickupDistKm = pickupResult.distanceKm || 0;
         }
         if (pickupLat && pickupLng && customerLat && customerLng) {
-          dropDistKm = haversineKm(pickupLat, pickupLng, customerLat, customerLng);
+          const dropResult = await getDistanceAndETA(pickupLat, pickupLng, customerLat, customerLng);
+          dropDistKm = dropResult.distanceKm || 0;
         }
 
         const pickupEarnings = pickupDistKm > pickupFreeKm
