@@ -5,6 +5,8 @@ const router = express.Router();
 const User = require('../model/user');
 const Driver = require('../model/driver');
 const Order = require('../model/order');
+const Setting = require('../model/setting');
+const DriverWithdrawal = require('../model/driverWithdrawal');
 const { authMiddleware, driverMiddleware } = require('../middleware/auth.middleware');
 const { sendOtpSms } = require('../services/smsService');
 const { uploadDriverPhoto, uploadProofOfDelivery } = require('../uploadFile');
@@ -247,6 +249,63 @@ router.patch('/orders/:id/status', authMiddleware, driverMiddleware, asyncHandle
   order.deliveryStatus = status;
   if (status === 'DELIVERED') {
     order.orderStatus = 'delivered';
+
+    // Calculate and credit driver earnings
+    try {
+      const driver = await Driver.findOne({ userId: req.user.id });
+      if (driver) {
+        const settings = await Setting.findOne() || {};
+        const pickupFreeKm = settings.driverPickupFreeKm || 1;
+        const pickupRate = settings.driverPickupRatePerKm || 3;
+        const dropRate = settings.driverDropRatePerKm || 12;
+
+        // Get supplier location for pickup distance
+        const supplierId = order.items?.[0]?.supplierId;
+        const supplier = supplierId ? await User.findById(supplierId) : null;
+        const pickupLat = supplier?.supplierProfile?.pickupAddress?.latitude;
+        const pickupLng = supplier?.supplierProfile?.pickupAddress?.longitude;
+        const customerLat = order.shippingAddress?.latitude;
+        const customerLng = order.shippingAddress?.longitude;
+        const driverLat = driver.currentLocation?.lat || 0;
+        const driverLng = driver.currentLocation?.lng || 0;
+
+        // Haversine distance calculation
+        function haversineKm(lat1, lon1, lat2, lon2) {
+          const R = 6371;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        let pickupDistKm = 0;
+        let dropDistKm = 0;
+        if (pickupLat && pickupLng) {
+          pickupDistKm = haversineKm(driverLat, driverLng, pickupLat, pickupLng);
+        }
+        if (pickupLat && pickupLng && customerLat && customerLng) {
+          dropDistKm = haversineKm(pickupLat, pickupLng, customerLat, customerLng);
+        }
+
+        const pickupEarnings = pickupDistKm > pickupFreeKm
+          ? (pickupDistKm - pickupFreeKm) * pickupRate
+          : 0;
+        const dropEarnings = dropDistKm * dropRate;
+        const totalDriverEarnings = Math.round(pickupEarnings + dropEarnings);
+
+        // Credit to driver wallet
+        driver.walletBalance = (driver.walletBalance || 0) + totalDriverEarnings;
+        driver.totalEarnings = (driver.totalEarnings || 0) + totalDriverEarnings;
+        await driver.save();
+
+        // Save earnings on the order
+        order.driverEarnings = totalDriverEarnings;
+      }
+    } catch (err) {
+      console.error('Error calculating driver earnings:', err);
+    }
   }
   await order.save();
 
@@ -344,7 +403,15 @@ router.get('/wallet', authMiddleware, driverMiddleware, asyncHandler(async (req,
   const earnings = await Order.find({ 
     assignedDriver: driver._id,
     deliveryStatus: 'DELIVERED'
-  }).select('id totalPrice orderDate deliveryStatus items');
+  }).select('_id totalPrice driverEarnings orderDate deliveryStatus items shippingAddress').sort({ _id: -1 });
+
+  // Fetch withdrawal history
+  const withdrawals = await DriverWithdrawal.find({ driverId: driver._id }).sort({ createdAt: -1 });
+
+  // Get min withdrawal amount from settings
+  const settings = await Setting.findOne() || {};
+  const minWithdrawalAmount = settings.minWithdrawalAmount || 100;
+  const razorpayFeePercent = settings.razorpayFeePercent || 2;
 
   res.json({ 
     success: true, 
@@ -352,7 +419,10 @@ router.get('/wallet', authMiddleware, driverMiddleware, asyncHandler(async (req,
       walletBalance: driver.walletBalance || 0,
       totalEarnings: driver.totalEarnings || 0,
       bankDetails: driver.bankDetails || null,
-      earningsHistory: earnings
+      minWithdrawalAmount,
+      razorpayFeePercent,
+      earningsHistory: earnings,
+      withdrawalHistory: withdrawals
     } 
   });
 }));
@@ -373,6 +443,94 @@ router.post('/bank-details', authMiddleware, driverMiddleware, asyncHandler(asyn
   await driver.save();
 
   res.json({ success: true, message: 'Bank details saved successfully.', data: driver });
+}));
+
+// =====================================================
+// WITHDRAWAL (authenticated driver)
+// =====================================================
+
+// POST /driver/withdraw
+router.post('/withdraw', authMiddleware, driverMiddleware, asyncHandler(async (req, res) => {
+  const driver = await Driver.findOne({ userId: req.user.id });
+  if (!driver) {
+    return res.status(404).json({ success: false, message: 'Driver profile not found.' });
+  }
+
+  // Verify bank details exist
+  if (!driver.bankDetails || !driver.bankDetails.accountNumber) {
+    return res.status(400).json({ success: false, message: 'Please add bank details before withdrawing.' });
+  }
+
+  const settings = await Setting.findOne() || {};
+  const minWithdrawalAmount = settings.minWithdrawalAmount || 100;
+  const razorpayFeePercent = settings.razorpayFeePercent || 2;
+
+  const { amount } = req.body;
+  const withdrawAmount = parseFloat(amount);
+
+  if (!withdrawAmount || withdrawAmount <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid withdrawal amount.' });
+  }
+
+  if (withdrawAmount < minWithdrawalAmount) {
+    return res.status(400).json({ success: false, message: `Minimum withdrawal amount is ₹${minWithdrawalAmount}.` });
+  }
+
+  if (driver.walletBalance < withdrawAmount) {
+    return res.status(400).json({ success: false, message: 'Insufficient wallet balance.' });
+  }
+
+  // Check for pending withdrawals
+  const pendingWithdrawal = await DriverWithdrawal.findOne({
+    driverId: driver._id,
+    status: { $in: ['pending', 'processing'] }
+  });
+  if (pendingWithdrawal) {
+    return res.status(400).json({ success: false, message: 'You already have a pending withdrawal request.' });
+  }
+
+  // Calculate fee
+  const razorpayFee = Math.round(withdrawAmount * razorpayFeePercent / 100);
+  const netAmount = withdrawAmount - razorpayFee;
+
+  // Deduct from wallet
+  driver.walletBalance -= withdrawAmount;
+  await driver.save();
+
+  // Create withdrawal record
+  const withdrawal = new DriverWithdrawal({
+    driverId: driver._id,
+    amount: withdrawAmount,
+    razorpayFee,
+    netAmount,
+    status: 'pending',
+    bankDetails: { ...driver.bankDetails.toObject() }
+  });
+  await withdrawal.save();
+
+  res.json({
+    success: true,
+    message: `Withdrawal request submitted. ₹${netAmount} will be transferred to your bank account.`,
+    data: {
+      withdrawalId: withdrawal._id,
+      amount: withdrawAmount,
+      razorpayFee,
+      netAmount,
+      status: 'pending',
+      walletBalance: driver.walletBalance
+    }
+  });
+}));
+
+// GET /driver/withdrawals
+router.get('/withdrawals', authMiddleware, driverMiddleware, asyncHandler(async (req, res) => {
+  const driver = await Driver.findOne({ userId: req.user.id });
+  if (!driver) {
+    return res.status(404).json({ success: false, message: 'Driver profile not found.' });
+  }
+
+  const withdrawals = await DriverWithdrawal.find({ driverId: driver._id }).sort({ createdAt: -1 });
+  res.json({ success: true, data: withdrawals });
 }));
 
 module.exports = router;
