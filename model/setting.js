@@ -39,6 +39,16 @@ const settingSchema = new mongoose.Schema({
   driverDropRatePerKm: {
     type: Number,
     default: 12  // ₹ per km for drop-off
+  },
+  // Razorpay payment handling fee (charged to user at checkout)
+  razorpayFeePercent: {
+    type: Number,
+    default: 2   // 2% of order subtotal
+  },
+  // Minimum wallet balance required for driver withdrawal
+  minWithdrawalAmount: {
+    type: Number,
+    default: 100 // ₹100 minimum
   }
 }, { timestamps: true });
 

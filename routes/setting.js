@@ -24,7 +24,8 @@ router.put('/', asyncHandler(async (req, res) => {
             referralRewardPercent, firstOrderRewardPercent,
             deliveryChargeWithin1km, deliveryChargePerKm2to5,
             deliveryChargeOver5km, handlingCharge,
-            driverPickupFreeKm, driverPickupRatePerKm, driverDropRatePerKm
+            driverPickupFreeKm, driverPickupRatePerKm, driverDropRatePerKm,
+            razorpayFeePercent, minWithdrawalAmount
         } = req.body;
         
         let setting = await Setting.findOne();
@@ -40,6 +41,8 @@ router.put('/', asyncHandler(async (req, res) => {
             if (driverPickupFreeKm !== undefined) setting.driverPickupFreeKm = driverPickupFreeKm;
             if (driverPickupRatePerKm !== undefined) setting.driverPickupRatePerKm = driverPickupRatePerKm;
             if (driverDropRatePerKm !== undefined) setting.driverDropRatePerKm = driverDropRatePerKm;
+            if (razorpayFeePercent !== undefined) setting.razorpayFeePercent = razorpayFeePercent;
+            if (minWithdrawalAmount !== undefined) setting.minWithdrawalAmount = minWithdrawalAmount;
         }
 
         const updatedSetting = await setting.save();

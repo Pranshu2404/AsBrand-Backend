@@ -58,8 +58,9 @@ const initiateOrder = async (req, res) => {
         // Dynamic charges from settings
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
-        const handlingCharge = settings.handlingCharge ?? 5;
-        const total = subtotal - discount + shippingCharge + handlingCharge + totalPackagingCharge;
+        const razorpayFeePercent = settings.razorpayFeePercent ?? 2;
+        const razorpayFee = Math.round((subtotal + shippingCharge + totalPackagingCharge) * razorpayFeePercent / 100);
+        const total = subtotal - discount + shippingCharge + razorpayFee + totalPackagingCharge;
 
         // Create order in database with status 'created'
         const order = new Order({
@@ -72,8 +73,8 @@ const initiateOrder = async (req, res) => {
             orderStatus: 'pending',
             paymentStatus: 'created',
             shippingCharge,
-            handlingCharge,
-            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, packagingCharge: totalPackagingCharge, total }
+            razorpayFee,
+            orderTotal: { subtotal, discount, shippingCharge, razorpayFee, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 
@@ -243,8 +244,9 @@ const placeCodOrder = async (req, res) => {
         // Dynamic charges from settings
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
-        const handlingCharge = settings.handlingCharge ?? 5;
-        const total = subtotal - discount + shippingCharge + handlingCharge + totalPackagingCharge;
+        const razorpayFeePercent = settings.razorpayFeePercent ?? 2;
+        const razorpayFee = Math.round((subtotal + shippingCharge + totalPackagingCharge) * razorpayFeePercent / 100);
+        const total = subtotal - discount + shippingCharge + razorpayFee + totalPackagingCharge;
 
         const order = new Order({
             userID,
@@ -256,7 +258,9 @@ const placeCodOrder = async (req, res) => {
             orderStatus: 'processing',
             paymentStatus: 'pending', // Payment on delivery
             deliveryStatus: 'PENDING',
-            orderTotal: { subtotal, discount, shippingCharge, handlingCharge, packagingCharge: totalPackagingCharge, total }
+            shippingCharge,
+            razorpayFee,
+            orderTotal: { subtotal, discount, shippingCharge, razorpayFee, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 

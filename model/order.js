@@ -103,7 +103,7 @@ const orderSchema = new mongoose.Schema({
     subtotal: Number,
     discount: Number,
     shippingCharge: Number,
-    handlingCharge: Number,
+    razorpayFee: Number,
     packagingCharge: Number,
     total: Number
   },
@@ -116,7 +116,11 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  handlingCharge: {
+  razorpayFee: {
+    type: Number,
+    default: 0
+  },
+  driverEarnings: {
     type: Number,
     default: 0
   },
