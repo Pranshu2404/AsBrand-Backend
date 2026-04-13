@@ -173,6 +173,97 @@ router.post('/profile', authMiddleware, driverMiddleware, uploadDriverPhoto.sing
   });
 }));
 
+// POST /driver/register (Full Onboarding Registration)
+router.post('/register', authMiddleware, driverMiddleware, uploadDriverPhoto.single('profilePhoto'), asyncHandler(async (req, res) => {
+  const {
+    fullName, email, dob, whatsappNumber, vehicleType, vehicleNumber,
+    aadhaarNumber, panNumber, dlNumber, rcNumber
+  } = req.body;
+
+  if (!fullName || !vehicleType || !vehicleNumber || !panNumber || !aadhaarNumber || !dlNumber || !rcNumber) {
+    return res.status(400).json({ success: false, message: 'Missing required fields for registration.' });
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found.' });
+  }
+
+  const rapidApiService = require('../services/rapidApiService');
+
+  // Verify Documents
+  const [panRes, aadhaarRes, dlRes, rcRes] = await Promise.all([
+    rapidApiService.verifyPan(panNumber),
+    rapidApiService.verifyAadhaar(aadhaarNumber),
+    rapidApiService.verifyDl(dlNumber),
+    rapidApiService.verifyRc(rcNumber)
+  ]);
+
+  if (!panRes.verified) return res.status(400).json({ success: false, message: 'PAN Verification failed: ' + (panRes.error || 'Invalid API Response') });
+  if (!aadhaarRes.verified) return res.status(400).json({ success: false, message: 'Aadhaar Verification failed: ' + (aadhaarRes.error || 'Invalid API Response') });
+  if (!dlRes.verified) return res.status(400).json({ success: false, message: 'Driving License Verification failed: ' + (dlRes.error || 'Invalid API Response') });
+  if (!rcRes.verified) return res.status(400).json({ success: false, message: 'RC Verification failed: ' + (rcRes.error || 'Invalid API Response') });
+
+  let driver = await Driver.findOne({ userId: user._id });
+  
+  if (driver) {
+    // Update existing
+    driver.fullName = fullName;
+    driver.email = email;
+    driver.dob = dob;
+    driver.whatsappNumber = whatsappNumber;
+    driver.vehicleType = vehicleType;
+    driver.vehicleNumber = vehicleNumber;
+    driver.panNumber = panNumber;
+    driver.panVerified = true;
+    driver.aadhaarNumber = aadhaarNumber;
+    driver.aadhaarVerified = true;
+    driver.dlNumber = dlNumber;
+    driver.dlVerified = true;
+    driver.rcNumber = rcNumber;
+    driver.rcVerified = true;
+
+    if (req.file) driver.profilePhoto = req.file.path;
+    driver.isProfileComplete = true;
+    await driver.save();
+  } else {
+    // Create new
+    driver = new Driver({
+      userId: user._id,
+      fullName,
+      phone: user.phone,
+      email,
+      dob,
+      whatsappNumber,
+      vehicleType,
+      vehicleNumber,
+      panNumber,
+      panVerified: true,
+      aadhaarNumber,
+      aadhaarVerified: true,
+      dlNumber,
+      dlVerified: true,
+      rcNumber,
+      rcVerified: true,
+      profilePhoto: req.file ? req.file.path : null,
+      isProfileComplete: true
+    });
+    await driver.save();
+  }
+
+  // Update user name
+  user.name = fullName;
+  await user.save();
+
+  const token = generateToken(user, driver._id);
+
+  res.json({
+    success: true,
+    message: 'Driver registration complete.',
+    data: { driverProfile: driver, token }
+  });
+}));
+
 // GET /driver/profile
 router.get('/profile', authMiddleware, driverMiddleware, asyncHandler(async (req, res) => {
   const driver = await Driver.findOne({ userId: req.user.id });
