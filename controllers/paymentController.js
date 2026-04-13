@@ -59,8 +59,12 @@ const initiateOrder = async (req, res) => {
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
         const razorpayFeePercent = settings.razorpayFeePercent ?? 2;
-        const razorpayFee = Math.round((subtotal + shippingCharge + totalPackagingCharge) * razorpayFeePercent / 100);
-        const total = subtotal - discount + shippingCharge + razorpayFee + totalPackagingCharge;
+        // Convenience fee = Razorpay fee (2%) + 18% GST on that fee
+        const baseAmount = subtotal + shippingCharge + totalPackagingCharge;
+        const razorpayCharge = baseAmount * razorpayFeePercent / 100;
+        const gstOnRazorpay = razorpayCharge * 18 / 100;
+        const convenienceFee = Math.round(razorpayCharge + gstOnRazorpay);
+        const total = subtotal - discount + shippingCharge + convenienceFee + totalPackagingCharge;
 
         // Create order in database with status 'created'
         const order = new Order({
@@ -73,8 +77,8 @@ const initiateOrder = async (req, res) => {
             orderStatus: 'pending',
             paymentStatus: 'created',
             shippingCharge,
-            razorpayFee,
-            orderTotal: { subtotal, discount, shippingCharge, razorpayFee, packagingCharge: totalPackagingCharge, total }
+            convenienceFee,
+            orderTotal: { subtotal, discount, shippingCharge, convenienceFee, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 
@@ -245,8 +249,12 @@ const placeCodOrder = async (req, res) => {
         const settings = await Setting.findOne() || {};
         const shippingCharge = req.body.deliveryCharge ?? 0;
         const razorpayFeePercent = settings.razorpayFeePercent ?? 2;
-        const razorpayFee = Math.round((subtotal + shippingCharge + totalPackagingCharge) * razorpayFeePercent / 100);
-        const total = subtotal - discount + shippingCharge + razorpayFee + totalPackagingCharge;
+        // Convenience fee = Razorpay fee (2%) + 18% GST on that fee
+        const baseAmount = subtotal + shippingCharge + totalPackagingCharge;
+        const razorpayCharge = baseAmount * razorpayFeePercent / 100;
+        const gstOnRazorpay = razorpayCharge * 18 / 100;
+        const convenienceFee = Math.round(razorpayCharge + gstOnRazorpay);
+        const total = subtotal - discount + shippingCharge + convenienceFee + totalPackagingCharge;
 
         const order = new Order({
             userID,
@@ -259,8 +267,8 @@ const placeCodOrder = async (req, res) => {
             paymentStatus: 'pending', // Payment on delivery
             deliveryStatus: 'PENDING',
             shippingCharge,
-            razorpayFee,
-            orderTotal: { subtotal, discount, shippingCharge, razorpayFee, packagingCharge: totalPackagingCharge, total }
+            convenienceFee,
+            orderTotal: { subtotal, discount, shippingCharge, convenienceFee, packagingCharge: totalPackagingCharge, total }
         });
         await order.save();
 

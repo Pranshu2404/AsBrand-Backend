@@ -82,7 +82,9 @@ function parseSkus(raw) {
 // Get all products
 router.get('/', asyncHandler(async (req, res) => {
     try {
-        const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount, supplierId } = req.query;
+        const { minPrice, maxPrice, sort, category, keyword, gender, brand, minDiscount, supplierId, lat, lng } = req.query;
+        const userLat = lat ? parseFloat(lat) : null;
+        const userLng = lng ? parseFloat(lng) : null;
         let query = { isApproved: { $ne: false } }; // Only show approved products to customers
 
         // Filter by Supplier Id
@@ -213,6 +215,44 @@ router.get('/', asyncHandler(async (req, res) => {
                 p.hasOtherSellers = true;
             }
         });
+
+        // ── Location-based filtering: only show products from suppliers within 10km ──
+        if (userLat != null && userLng != null && !isNaN(userLat) && !isNaN(userLng)) {
+            // Collect all unique supplier IDs from the (possibly re-assigned) products
+            const supplierIds = [...new Set(products.map(p => p.supplierId?.toString()).filter(Boolean))];
+
+            // Batch-fetch supplier pickup coordinates
+            const suppliers = await User.find({ _id: { $in: supplierIds } })
+                .select('_id supplierProfile.pickupAddress.latitude supplierProfile.pickupAddress.longitude')
+                .lean();
+
+            const supplierLocationMap = {};
+            suppliers.forEach(s => {
+                const pickupLat = s.supplierProfile?.pickupAddress?.latitude;
+                const pickupLng = s.supplierProfile?.pickupAddress?.longitude;
+                if (pickupLat != null && pickupLng != null) {
+                    supplierLocationMap[s._id.toString()] = { lat: pickupLat, lng: pickupLng };
+                }
+            });
+
+            // Haversine distance (km)
+            const haversineKm = (lat1, lon1, lat2, lon2) => {
+                const R = 6371;
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) ** 2 +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon / 2) ** 2;
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            };
+
+            products = products.filter(p => {
+                const sid = p.supplierId?.toString();
+                if (!sid || !supplierLocationMap[sid]) return false;
+                const loc = supplierLocationMap[sid];
+                return haversineKm(userLat, userLng, loc.lat, loc.lng) <= 10;
+            });
+        }
 
         res.json({ success: true, message: "Products retrieved successfully.", data: products });
     } catch (error) {

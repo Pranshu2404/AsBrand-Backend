@@ -103,7 +103,7 @@ const orderSchema = new mongoose.Schema({
     subtotal: Number,
     discount: Number,
     shippingCharge: Number,
-    razorpayFee: Number,
+    convenienceFee: Number,
     packagingCharge: Number,
     total: Number
   },
@@ -116,7 +116,7 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  razorpayFee: {
+  convenienceFee: {
     type: Number,
     default: 0
   },
