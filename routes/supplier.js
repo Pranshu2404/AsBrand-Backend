@@ -524,14 +524,17 @@ router.put('/profile', authMiddleware, supplierMiddleware, asyncHandler(async (r
 // GET /supplier/dashboard
 router.get('/dashboard', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
     const supplierId = req.user.id;
+    const user = await User.findById(supplierId);
+    const supplierSince = user?.supplierProfile?.supplierSince || new Date(0);
 
-    // Total products by this supplier
-    const totalProducts = await Product.countDocuments({ supplierId });
-    const activeProducts = await Product.countDocuments({ supplierId, isActive: true });
+    // Total products by this supplier in the current tenure
+    const totalProducts = await Product.countDocuments({ supplierId, createdAt: { $gte: supplierSince } });
+    const activeProducts = await Product.countDocuments({ supplierId, isActive: true, createdAt: { $gte: supplierSince } });
 
-    // Orders containing this supplier's products
+    // Orders containing this supplier's products since they re-registered
     const orders = await Order.find({
-        'items.supplierId': supplierId
+        'items.supplierId': supplierId,
+        createdAt: { $gte: supplierSince }
     });
 
     let totalRevenue = 0;
@@ -562,11 +565,14 @@ router.get('/dashboard', authMiddleware, supplierMiddleware, asyncHandler(async 
 // GET /supplier/finance — Get detailed finance and payouts overview
 router.get('/finance', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
     const supplierId = req.user.id;
+    const user = await User.findById(supplierId);
+    const supplierSince = user?.supplierProfile?.supplierSince || new Date(0);
 
-    // Get all orders containing this supplier's items that are delivered
+    // Get all orders containing this supplier's items that are delivered in current tenure
     const deliveredOrders = await Order.find({
         'items.supplierId': supplierId,
-        orderStatus: 'delivered'
+        orderStatus: 'delivered',
+        createdAt: { $gte: supplierSince }
     }).sort({ createdAt: -1 });
 
     let totalEarnings = 0;
@@ -615,14 +621,17 @@ router.get('/finance', authMiddleware, supplierMiddleware, asyncHandler(async (r
 
 // GET /supplier/products — List supplier's own products
 router.get('/products', authMiddleware, supplierMiddleware, asyncHandler(async (req, res) => {
-    const products = await Product.find({ supplierId: req.user.id })
+    const user = await User.findById(req.user.id);
+    const supplierSince = user?.supplierProfile?.supplierSince || new Date(0);
+
+    const products = await Product.find({ supplierId: req.user.id, createdAt: { $gte: supplierSince } })
         .populate('proCategoryId', 'id name')
         .populate('proSubCategoryId', 'id name')
         .populate('proBrandId', 'id name')
         .sort({ createdAt: -1 })
         .lean();
 
-    const mappedProducts = await SupplierProduct.find({ supplierId: req.user.id })
+    const mappedProducts = await SupplierProduct.find({ supplierId: req.user.id, createdAt: { $gte: supplierSince } })
         .populate({
             path: 'productId',
             populate: [
@@ -1168,6 +1177,11 @@ router.put('/admin/reject/:userId', asyncHandler(async (req, res) => {
     if (!user || user.role !== 'supplier') {
         return res.status(404).json({ success: false, message: 'Supplier not found.' });
     }
+
+    // COMPLETE REVOKE: Soft-delete/deactivate their products and mapped products
+    // So they are no longer visible to customers
+    await Product.updateMany({ supplierId: user._id }, { isActive: false, isApproved: false });
+    await SupplierProduct.updateMany({ supplierId: user._id }, { isActive: false, isApproved: false });
 
     // Revert to regular user
     user.role = 'user';

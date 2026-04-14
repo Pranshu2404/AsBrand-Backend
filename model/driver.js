@@ -22,6 +22,16 @@ const driverSchema = new mongoose.Schema({
     enum: ['bike', 'car', 'van'],
     required: true
   },
+  email: {
+    type: String,
+    trim: true
+  },
+  dob: {
+    type: String
+  },
+  whatsappNumber: {
+    type: String
+  },
   vehicleNumber: {
     type: String,
     required: true,
@@ -48,6 +58,30 @@ const driverSchema = new mongoose.Schema({
     default: 'Upto 30kg'
   },
   dlVerified: {
+    type: Boolean,
+    default: false
+  },
+  dlNumber: {
+    type: String
+  },
+  panNumber: {
+    type: String
+  },
+  panVerified: {
+    type: Boolean,
+    default: false
+  },
+  aadhaarNumber: {
+    type: String
+  },
+  aadhaarVerified: {
+    type: Boolean,
+    default: false
+  },
+  rcNumber: {
+    type: String
+  },
+  rcVerified: {
     type: Boolean,
     default: false
   },
