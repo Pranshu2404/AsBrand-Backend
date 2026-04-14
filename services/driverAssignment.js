@@ -204,7 +204,7 @@ class DriverAssignmentEngine {
                     order.estimatedDeliveryMinutes = eta.durationMinutes;
                     order.assignedDriver = driverIdStr;
                     order.orderStatus = 'shipped';
-                    order.deliveryStatus = 'ACCEPTED';
+                    order.deliveryStatus = 'CREATED';
                     await order.save();
 
                     // Notify customer app
@@ -223,7 +223,7 @@ class DriverAssignmentEngine {
                     await Order.findByIdAndUpdate(orderIdStr, {
                         assignedDriver: driverIdStr,
                         orderStatus: 'shipped',
-                        deliveryStatus: 'ACCEPTED',
+                        deliveryStatus: 'CREATED',
                         estimatedDeliveryMinutes: 15 // default estimate
                     });
                 }
@@ -231,7 +231,7 @@ class DriverAssignmentEngine {
                 await Order.findByIdAndUpdate(orderIdStr, {
                     assignedDriver: driverIdStr,
                     orderStatus: 'shipped',
-                    deliveryStatus: 'ACCEPTED',
+                    deliveryStatus: 'CREATED',
                     estimatedDeliveryMinutes: 15
                 });
             }
@@ -241,7 +241,7 @@ class DriverAssignmentEngine {
             await Order.findByIdAndUpdate(orderIdStr, {
                 assignedDriver: driverIdStr,
                 orderStatus: 'shipped',
-                deliveryStatus: 'ACCEPTED',
+                deliveryStatus: 'CREATED',
                 estimatedDeliveryMinutes: 15
             }).exec();
         }
