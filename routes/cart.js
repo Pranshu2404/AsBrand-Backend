@@ -137,4 +137,52 @@ router.post('/sync', authMiddleware, asyncHandler(async (req, res) => {
     res.json({ success: true, data: cart });
 }));
 
+// Validate cart delivery distance
+router.post('/verify-delivery', authMiddleware, asyncHandler(async (req, res) => {
+    const { items, lat, lng } = req.body;
+    
+    if (!lat || !lng || !items || !Array.isArray(items)) {
+        return res.json({ success: true, message: 'Skipped - Missing coordinates or items' });
+    }
+
+    const supplierIds = [...new Set(items.map(i => i.supplierId).filter(Boolean))];
+    if (supplierIds.length === 0) {
+        return res.json({ success: true, message: 'Delivery location within range.' });
+    }
+
+    const User = require('../model/user'); 
+    const suppliers = await User.find({ _id: { $in: supplierIds } })
+        .select('_id supplierProfile.pickupAddress.latitude supplierProfile.pickupAddress.longitude')
+        .lean();
+
+    const haversineKm = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    let invalidSupplier = null;
+    for (const s of suppliers) {
+        const pickupLat = s.supplierProfile?.pickupAddress?.latitude;
+        const pickupLng = s.supplierProfile?.pickupAddress?.longitude;
+        if (pickupLat != null && pickupLng != null && !isNaN(pickupLat) && !isNaN(pickupLng)) {
+            const dist = haversineKm(lat, lng, pickupLat, pickupLng);
+            if (dist > 10) {
+                invalidSupplier = s._id;
+                break;
+            }
+        }
+    }
+
+    if (invalidSupplier) {
+        return res.json({ success: false, message: 'This product is not available in your area.' });
+    }
+
+    res.json({ success: true, message: 'Delivery location within range.' });
+}));
+
 module.exports = router;
