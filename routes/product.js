@@ -248,7 +248,9 @@ router.get('/', asyncHandler(async (req, res) => {
 
             products = products.filter(p => {
                 const sid = p.supplierId?.toString();
-                if (!sid || !supplierLocationMap[sid]) return false;
+                // Admin products without a supplier should not be filtered out by radius
+                if (!sid) return true;
+                if (!supplierLocationMap[sid]) return false;
                 const loc = supplierLocationMap[sid];
                 return haversineKm(userLat, userLng, loc.lat, loc.lng) <= 10;
             });
