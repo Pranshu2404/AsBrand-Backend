@@ -28,6 +28,7 @@ router.get('/orderByUserId/:userId', asyncHandler(async (req, res) => {
         const orders = await Order.find({ userID: userId })
             .populate('couponCode', 'id couponCode discountType discountAmount')
             .populate('userID', 'id name')
+            .populate('assignedDriver', 'fullName phone profilePhoto vehicleType vehicleNumber')
             .sort({ _id: -1 });
         res.json({ success: true, message: "Orders retrieved successfully.", data: orders });
     } catch (error) {
@@ -42,6 +43,7 @@ router.get('/my-orders', authMiddleware, asyncHandler(async (req, res) => {
         const orders = await Order.find({ userID: req.user.id })
             .populate('couponCode', 'id couponCode discountType discountAmount')
             .populate('items.productID', 'name primaryImage images price offerPrice')
+            .populate('assignedDriver', 'fullName phone profilePhoto vehicleType vehicleNumber')
             .sort({ _id: -1 });
         res.json({ success: true, message: "Orders retrieved successfully.", data: orders });
     } catch (error) {
