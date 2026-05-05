@@ -599,8 +599,8 @@ router.use('/:id', asyncHandler(async (req, res, next) => {
             if (typeof specifications === 'string') {
                 try { parsedSpecs = JSON.parse(specifications); } catch (e) { parsedSpecs = []; }
             }
-            let parsedProVariants = parseProVariants(proVariants);
-            let parsedSkus = parseSkus(skus);
+            let parsedProVariants = proVariants !== undefined ? parseProVariants(proVariants) : undefined;
+            let parsedSkus = skus !== undefined ? parseSkus(skus) : undefined;
 
             const cleanId = (id) => (!id || id === 'null' || id === '') ? undefined : id;
 
@@ -617,8 +617,8 @@ router.use('/:id', asyncHandler(async (req, res, next) => {
             if (proBrandId !== undefined) productToUpdate.proBrandId = cleanId(proBrandId);
             if (proVariantTypeId !== undefined) productToUpdate.proVariantTypeId = cleanId(proVariantTypeId);
             if (proVariantId !== undefined) productToUpdate.proVariantId = Array.isArray(proVariantId) ? proVariantId.map(cleanId).filter(Boolean) : [cleanId(proVariantId)].filter(Boolean);
-            if (parsedProVariants) productToUpdate.proVariants = parsedProVariants;
-            if (parsedSkus) productToUpdate.skus = parsedSkus;
+            if (parsedProVariants !== undefined) productToUpdate.proVariants = parsedProVariants;
+            if (parsedSkus !== undefined) productToUpdate.skus = parsedSkus;
 
             if (weight !== undefined) productToUpdate.weight = weight || 0;
             if (parsedDimensions) productToUpdate.dimensions = parsedDimensions;

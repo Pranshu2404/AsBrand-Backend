@@ -337,7 +337,22 @@ router.patch('/orders/:id/status', authMiddleware, driverMiddleware, asyncHandle
     return res.status(404).json({ success: false, message: 'Order not found.' });
   }
 
+  // Gate: Driver cannot pick up until supplier marks food as ready
+  if (status === 'PICKED_UP' && order.orderStatus !== 'ready') {
+    return res.status(400).json({
+      success: false,
+      message: 'Order food is not ready yet. Please wait for the supplier to mark it ready.'
+    });
+  }
+
   order.deliveryStatus = status;
+
+  // Sync orderStatus with deliveryStatus transitions
+  if (status === 'PICKED_UP') {
+    order.orderStatus = 'picked_up';
+    order.pickedUpAt = new Date();
+  }
+
   if (status === 'DELIVERED') {
     order.orderStatus = 'delivered';
 
@@ -393,6 +408,21 @@ router.patch('/orders/:id/status', authMiddleware, driverMiddleware, asyncHandle
     }
   }
   await order.save();
+
+  // Emit socket events so supplier app can track delivery progress in real-time
+  const io = req.app.get('io');
+  if (io) {
+    io.emit(`order_status_${order._id}`, {
+      orderId: order._id,
+      status: order.orderStatus,
+      deliveryStatus: status
+    });
+    io.emit(`order_update_${order.userID}`, {
+      orderId: order._id,
+      status: order.orderStatus,
+      deliveryStatus: status
+    });
+  }
 
   res.json({ success: true, message: `Order status updated to ${status}.`, data: order });
 }));
