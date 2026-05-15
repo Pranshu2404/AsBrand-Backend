@@ -999,6 +999,7 @@ router.get('/orders', authMiddleware, supplierMiddleware, asyncHandler(async (re
         'items.productID': { $in: productIds }
     })
         .populate('userID', 'name email phone')
+        .populate('assignedDriver', 'fullName phone profilePhoto')
         .sort({ createdAt: -1 });
 
     // Filter each order to only include this supplier's items
@@ -1122,7 +1123,18 @@ router.put('/orders/:id/picked-up', authMiddleware, supplierMiddleware, asyncHan
         return res.status(400).json({ success: false, message: `Cannot mark picked up from "${order.orderStatus}" status.` });
     }
 
+    // Validate delivery partner is assigned
+    if (!order.assignedDriver) {
+        return res.status(400).json({ success: false, message: 'Delivery partner has not been assigned yet. Please wait for a driver to be assigned.' });
+    }
+
+    // Validate delivery partner has reached the pickup location
+    if (order.deliveryStatus !== 'REACHED_PICKUP') {
+        return res.status(400).json({ success: false, message: 'Delivery partner has not reached the pickup location yet. Please wait for the driver to arrive.' });
+    }
+
     order.orderStatus = 'picked_up';
+    order.deliveryStatus = 'PICKED_UP';
     order.pickedUpAt = new Date();
     await order.save();
 

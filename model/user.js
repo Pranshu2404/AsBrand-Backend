@@ -82,7 +82,7 @@ const userSchema = new mongoose.Schema({
       ifscCode: { type: String, trim: true },
       bankName: { type: String, trim: true }
     },
-    isApproved: { type: Boolean, default: true },
+    isApproved: { type: Boolean, default: false },
     supplierSince: { type: Date }
   }
 }, { timestamps: true });
