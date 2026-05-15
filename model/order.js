@@ -126,7 +126,7 @@ const orderSchema = new mongoose.Schema({
   },
   deliveryStatus: {
     type: String,
-    enum: ['PENDING', 'CREATED', 'SHIPPED', 'IN_TRANSIT', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    enum: ['PENDING', 'CREATED', 'ACCEPTED', 'REACHED_PICKUP', 'SHIPPED', 'IN_TRANSIT', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
     default: 'PENDING'
   },
   deliveryPartner: {

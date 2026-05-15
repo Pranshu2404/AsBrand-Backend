@@ -327,7 +327,7 @@ router.get('/orders/:id/details', authMiddleware, driverMiddleware, asyncHandler
 // PATCH /driver/orders/:id/status
 router.patch('/orders/:id/status', authMiddleware, driverMiddleware, asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+  const validStatuses = ['ACCEPTED', 'REACHED_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
   }
@@ -490,7 +490,7 @@ router.post('/orders/:id/accept', authMiddleware, driverMiddleware, asyncHandler
   }
 
   order.assignedDriver = driver._id;
-  order.deliveryStatus = 'PICKED_UP';
+  order.deliveryStatus = 'ACCEPTED';
   await order.save();
 
   res.json({ success: true, message: 'Order accepted.', data: order });
